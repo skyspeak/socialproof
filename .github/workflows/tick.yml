@@ -1,0 +1,89 @@
+name: Digest tick
+
+# Why this exists:
+#
+# Vercel's Hobby plan caps cron jobs at ONE PER DAY (a more frequent expression
+# fails at deploy time) and may fire it anywhere within the scheduled hour. A
+# once-a-day trigger is a poor recovery story: a run that dies at 13:01 would
+# wait 24 hours for another chance.
+#
+# GitHub Actions gives free 5-minute-granularity scheduling, so we point it at
+# /api/tick, which is idempotent — it advances whatever is unfinished and
+# no-ops once the day is published. Vercel's own daily cron still kicks things
+# off; this is purely the safety net.
+#
+# On a Vercel Pro plan you can delete this file and schedule the cron itself
+# every few minutes instead — both routes call the same advance().
+#
+# Setup: add two repository secrets under Settings → Secrets and variables →
+# Actions:
+#   SITE_URL     e.g. https://trendwire.vercel.app  (no trailing slash)
+#   CRON_SECRET  the same value set in Vercel's environment variables
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub queues scheduled runs under load, so treat the
+    # cadence as approximate — which is fine, since the endpoint is idempotent.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Target a specific date (YYYY-MM-DD) — used for backfills"
+        required: false
+        type: string
+
+# Never let two ticks overlap; the server-side lease would reject the second
+# anyway, but this avoids the wasted invocation entirely.
+concurrency:
+  group: digest-tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Advance the digest
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          TARGET_DATE: ${{ inputs.date }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SITE_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::SITE_URL and CRON_SECRET repository secrets must be set."
+            exit 1
+          fi
+
+          URL="${SITE_URL%/}/api/tick"
+          if [ -n "${TARGET_DATE:-}" ]; then
+            URL="${URL}?date=${TARGET_DATE}"
+          fi
+
+          echo "POST ${URL}"
+          # --max-time 320 exceeds the function's 300s ceiling so we see the
+          # real response rather than a client-side timeout.
+          HTTP_CODE=$(curl -sS -X POST "$URL" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            --max-time 320 \
+            -o response.json \
+            -w "%{http_code}")
+
+          echo "HTTP ${HTTP_CODE}"
+          cat response.json
+          echo
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Tick failed with HTTP ${HTTP_CODE}"
+            exit 1
+          fi
+
+          # Surface the outcome in the run summary so failures are visible
+          # without opening logs.
+          {
+            echo "### Digest tick"
+            echo '```json'
+            cat response.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

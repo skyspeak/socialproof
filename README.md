@@ -1,0 +1,139 @@
+# Trendwire
+
+A daily technology digest that runs in the cloud, reads what the industry actually argued about, and never asks you to open X.
+
+Ingests Hacker News, Lobsters, GitHub, arXiv, Techmeme, Reddit and the open-web reflection of X into Postgres, clusters the last 24 hours into named themes, tracks a dedicated people-moves beat, and publishes a dated issue with a permanent archive.
+
+**Stack:** Next.js (App Router) on Vercel · Postgres via Drizzle · Vercel Cron
+
+---
+
+## How it works
+
+```
+Vercel Cron (daily)  ──►  /api/cron/digest ──┐
+GitHub Actions tick  ──►  /api/tick        ──┤
+                                             ▼
+                                  acquire lease (Postgres)
+                                  ingest pending sources
+                                  synthesize → publish
+                                  release lease
+```
+
+One invocation does as much as it can inside a 240s internal budget (the platform
+ceiling is 300s on every plan) and returns a report. If it runs out of budget it
+stops cleanly; the next tick reads the run log, sees what's already done, and
+continues. Both routes call the same `advance()`, which is idempotent and safe to
+call concurrently.
+
+There is deliberately **no self-invocation**. An earlier version had each chunk
+re-invoke the next over HTTP; Vercel can freeze a function's execution context as
+soon as it responds, so an un-awaited `fetch` may never leave the box and the
+chain dies silently mid-run. Doing the work inline has no such failure mode.
+
+See **[DEPLOY.md](./DEPLOY.md)** for the full cloud rationale and deployment steps.
+
+### Pipeline stages
+
+1. **Ingest** — each source adapter normalizes into `raw_items`. Adapters never throw into the runner; every outcome (`ok` / `empty` / `failed` / `skipped`) is written to `run_sources`.
+2. **Dedup** — canonical URL plus content hash collapse the same story arriving from several sources. Corroboration count is retained, because being carried by four sources is itself a signal.
+3. **Synthesize** — the top 60 deduped items go to one LLM call returning themes and people moves as JSON. Item indexes are mapped back to real row ids; enum fields are validated.
+4. **Publish** — the digest flips to `published`. Pages read from Postgres and never re-fetch sources.
+
+### Sources
+
+| Tier | Sources |
+|---|---|
+| Core (open APIs) | Hacker News stories, HN top comments, Lobsters, GitHub new+rising, arXiv cs.AI/LG/CL, Ars Technica |
+| X-adjacent | Techmeme, Reddit, Exa semantic search scoped to x.com, X mirror frontends, Simon Willison, Import AI, Latent Space, The Verge |
+| People beat | HN personnel headlines, Techmeme personnel headlines, Exa people-move search |
+
+**On the X tier:** no single path is load-bearing. Mirror instances die constantly and Exa needs a key; when those go dark, Techmeme and the newsletters still carry the conversation secondhand with a few hours' lag. Every source reports its own status, so degradation is visible on the page rather than silent.
+
+---
+
+## Deploy
+
+Full instructions, including the platform constraints that shaped the design, are
+in **[DEPLOY.md](./DEPLOY.md)**. The short version:
+
+```bash
+npx vercel                 # deploy
+# set DATABASE_URL, CRON_SECRET, and an LLM key in Vercel
+npm run db:migrate         # apply schema via the DIRECT (unpooled) connection
+npx vercel --prod
+curl -H "Authorization: Bearer $CRON_SECRET" https://<you>.vercel.app/api/cron/digest
+curl https://<you>.vercel.app/api/status
+```
+
+Postgres comes from **Neon** — Vercel Postgres was discontinued and folded into
+Neon in December 2024. You need two connection strings: the pooled one for the
+app, the direct one for migrations. DEPLOY.md explains why.
+
+## Local development
+
+There is no Postgres requirement for local work. The harness uses [PGlite](https://pglite.dev) — real Postgres compiled to WASM — so the full pipeline runs against live sources with no server:
+
+```bash
+npm run digest:local
+```
+
+This applies migrations, ingests everything, synthesizes, and prints the digest plus a per-source health report:
+
+```
+  ✓ hackernews             45 items  892ms
+  ✓ arxiv                  40 items  1204ms
+  · reddit                  0 items  2100ms — all subreddits unreachable (403)
+```
+
+To browse the result:
+
+```bash
+DATABASE_URL="pglite://./.pglite" npm run build && DATABASE_URL="pglite://./.pglite" npm start
+```
+
+### Tests
+
+```bash
+npm test
+```
+
+Three suites, no network and no API keys required:
+
+- **`test-lock.ts`** — the lease lock: contention (exactly one of four concurrent acquires wins), non-holders can't renew or release, expired leases are stealable (the crash-recovery path), and the lease is freed even when the body throws.
+- **`test-resume.ts`** — resumability: drives the pipeline with a 1ms budget so it's forced to stop repeatedly, then asserts every source was ingested **exactly once** across resumes, synthesis ran once rather than per pass, and a tick after publication is a no-op.
+- **`test-synthesis.ts`** — the model path against a stub provider: prompt assembly, fenced-JSON recovery, item-index → row-id mapping, invalid enum coercion, out-of-range indexes, and fallback when no key is set.
+
+---
+
+## Routes
+
+| Route | Purpose |
+|---|---|
+| `/` | Latest published issue |
+| `/digest/2026-08-17` | A specific date |
+| `/archive` | Every issue |
+| `/api/digest/latest`, `/api/digest/:date` | JSON |
+| `/feed.xml` | RSS |
+| `/api/status` | Operational health; 503 when degraded |
+| `/api/cron/digest` | Daily pipeline entry point (auth required) |
+| `/api/tick` | Idempotent resume; `?date=` for backfills (auth required) |
+
+---
+
+## Known limitations
+
+Being straight about the edges rather than discovering them in production:
+
+- **Reddit 403s from datacenter IPs.** Unauthenticated `.json` reads are blocked from most cloud hosts, including Vercel. The source reports `skipped` with that reason rather than pretending the day was quiet. Making it reliable means registering a Reddit OAuth app and adding client credentials.
+- **X mirror instances are unreliable by nature.** The adapter races a list and skips when all are down. This is expected, not a bug — it's why the X tier has three independent paths.
+- **arXiv doesn't publish on weekends.** That source uses a 96-hour lookback instead of 24 so Saturday and Sunday issues aren't empty; dedup absorbs the overlap.
+- **The heuristic fallback is genuinely worse.** Without an LLM key you get term clusters ("deepseek / harness / plugin") rather than claims about what happened. It exists to keep the service publishing during an outage, not as a substitute. The intro text says so on the page when it engages.
+- **One LLM call per day** caps cost but also caps nuance; the corpus is trimmed to the top 60 deduped items, with the people tier guaranteed representation so a busy AI news day can't crowd it out.
+- **No email delivery yet.** RSS is wired; adding Resend on publish is a small addition to the synthesis step.
+- **Neon Free suspends compute after 5 minutes idle** and can't be configured otherwise on that plan. First request to a cold site pays a reactivation latency; it is not an error. Page caching keeps most visits off the database.
+- **Synthesis corpus is capped at 60 items** because a 120-item prompt did not return within 10 minutes against a live model, which on Vercel means the run is killed. Raise `SYNTH_MAX_CORPUS` only alongside `LLM_TIMEOUT_MS`, and measure.
+
+## Cost
+
+One cron run and one LLM call per day, plus a Postgres instance that fits comfortably in a free tier at this volume. `raw_items` is the only table that grows meaningfully — add a retention prune if the archive gets long.

@@ -1,0 +1,33 @@
+{
+  "name": "trendwire",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "digest:local": "tsx scripts/run-local.ts",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "test": "tsx scripts/test-lock.ts && tsx scripts/test-resume.ts && tsx scripts/test-synthesis.ts"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.5",
+    "drizzle-orm": "^0.45.2",
+    "fast-xml-parser": "^5.11.0",
+    "next": "^16.3.1",
+    "postgres": "^3.4.5",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
