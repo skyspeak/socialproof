@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trendwire — Operator’s Brief, Vol. 1</title>
+  <style>
+    :root {
+      --ink: #12100e;
+      --ink-soft: #3d3a36;
+      --ink-mute: #6b6660;
+      --rule: #cfc8bc;
+      --rule-soft: #e7e1d6;
+      --paper: #f7f3ea;
+      --paper-bright: #fffdf8;
+      --accent: #a4232a;
+      --deep: #14446b;
+      --display: "Iowan Old Style", "Palatino Linotype", Palatino, "Libre Baskerville", Georgia, serif;
+      --serif: "Iowan Old Style", Palatino, "Source Serif 4", Georgia, "Times New Roman", serif;
+      --sans: "Avenir Next", "Libre Franklin", "Segoe UI", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--serif);
+      font-size: 16.5px;
+      line-height: 1.58;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+
+    .screen-bar {
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      background: var(--ink);
+      color: var(--paper);
+      padding: 0.7rem 1.4rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .screen-bar button {
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: var(--paper);
+      color: var(--ink);
+      border: 0;
+      padding: 0.35rem 0.8rem;
+      cursor: pointer;
+    }
+
+    .issue {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 0 1.4rem 5rem;
+      background: var(--paper-bright);
+      box-shadow: 0 0 0 1px var(--rule-soft);
+    }
+
+    .masthead {
+      text-align: center;
+      padding: 2.8rem 0 0.9rem;
+      border-bottom: 3px double var(--ink);
+    }
+    .kicker {
+      font-family: var(--sans);
+      font-size: 0.68rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+    }
+    .masthead h1 {
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: clamp(3.2rem, 9vw, 5.4rem);
+      letter-spacing: -0.03em;
+      line-height: 0.9;
+      margin: 0.55rem 0 0.4rem;
+    }
+    .masthead .deck {
+      font-style: italic;
+      font-size: 1.15rem;
+      color: var(--ink-soft);
+      margin: 0.6rem 0 0;
+    }
+    .folio {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      font-family: var(--sans);
+      font-size: 0.68rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      border-bottom: 1px solid var(--rule);
+      padding: 0.55rem 0 0.7rem;
+    }
+
+    .lede {
+      padding: 2.4rem 0 2rem;
+      border-bottom: 1px solid var(--rule);
+    }
+    .lede h2 {
+      font-family: var(--display);
+      font-size: clamp(1.7rem, 3.4vw, 2.25rem);
+      line-height: 1.22;
+      font-weight: 700;
+      margin: 0 0 1rem;
+    }
+    .lede p { margin: 0 0 0.9rem; }
+    .drop::first-letter {
+      font-family: var(--display);
+      float: left;
+      font-size: 4.4rem;
+      line-height: 0.8;
+      padding: 0.12em 0.12em 0 0;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    h3.section {
+      font-family: var(--sans);
+      font-size: 0.72rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent);
+      border-top: 1px solid var(--ink);
+      padding-top: 0.7rem;
+      margin: 2.6rem 0 1rem;
+    }
+    h4 {
+      font-family: var(--display);
+      font-size: 1.35rem;
+      line-height: 1.25;
+      margin: 1.6rem 0 0.55rem;
+    }
+    p { margin: 0 0 0.85rem; }
+    ul, ol { margin: 0 0 1rem; padding-left: 1.2rem; }
+    li { margin-bottom: 0.35rem; }
+    .cols {
+      columns: 2;
+      column-gap: 2rem;
+      column-rule: 1px solid var(--rule-soft);
+    }
+    .cols p { break-inside: avoid; }
+    .pull {
+      font-family: var(--display);
+      font-style: italic;
+      font-size: 1.45rem;
+      line-height: 1.3;
+      color: var(--deep);
+      border-left: 3px solid var(--accent);
+      padding: 0.2rem 0 0.2rem 1.1rem;
+      margin: 1.4rem 0 1.5rem;
+    }
+    .byline {
+      font-family: var(--sans);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      margin-bottom: 1.1rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+      margin: 0.4rem 0 1.3rem;
+      break-inside: avoid;
+    }
+    th, td {
+      text-align: left;
+      vertical-align: top;
+      padding: 0.42rem 0.5rem 0.42rem 0;
+      border-bottom: 1px solid var(--rule-soft);
+    }
+    th {
+      font-family: var(--sans);
+      font-size: 0.64rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      font-weight: 600;
+      border-bottom: 1px solid var(--ink);
+    }
+    code, .mono {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.84em;
+    }
+    pre {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.72rem;
+      line-height: 1.45;
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      padding: 0.9rem 1rem;
+      overflow-x: auto;
+      white-space: pre;
+      margin: 0.6rem 0 1.2rem;
+    }
+
+    .toc ol {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 0.4rem;
+    }
+    .toc li {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      border-bottom: 1px dotted var(--rule);
+      padding: 0.28rem 0;
+      font-size: 0.95rem;
+    }
+    .toc .pg {
+      font-family: var(--sans);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      color: var(--ink-mute);
+      white-space: nowrap;
+    }
+
+    .verdict {
+      background: var(--paper);
+      border: 1px solid var(--ink);
+      padding: 1.1rem 1.2rem 0.4rem;
+      margin: 1.2rem 0 1.4rem;
+    }
+    .verdict .label {
+      font-family: var(--sans);
+      font-size: 0.64rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps > li {
+      counter-increment: step;
+      position: relative;
+      padding-left: 2.6rem;
+      margin-bottom: 1rem;
+      break-inside: avoid;
+    }
+    .steps > li::before {
+      content: counter(step, decimal-leading-zero);
+      position: absolute;
+      left: 0;
+      top: 0.05rem;
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .steps strong { font-family: var(--display); }
+
+    .colophon {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 3px double var(--ink);
+      font-family: var(--sans);
+      font-size: 0.72rem;
+      color: var(--ink-mute);
+      letter-spacing: 0.04em;
+    }
+
+    @media print {
+      .screen-bar { display: none !important; }
+      html, body { background: white; font-size: 11pt; }
+      .issue {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+        background: white;
+      }
+      a { text-decoration: none; }
+      h3.section { break-after: avoid; }
+      h4 { break-after: avoid; }
+      .lede, .cols, table, pre, .verdict, .steps > li { break-inside: avoid; }
+      @page { size: letter; margin: 16mm 16mm 18mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="screen-bar">
+    <span>Offline magazine · open this file in any browser · no network required</span>
+    <button type="button" onclick="window.print()">Print / Save as PDF</button>
+  </div>
+
+  <article class="issue">
+    <header class="masthead">
+      <div class="kicker">Vol. 1 &nbsp;·&nbsp; Operator’s Brief &nbsp;·&nbsp; 21 August 2026</div>
+      <h1>Trendwire</h1>
+      <p class="deck">A daily technology digest that runs unattended, reads what the industry argued about, and never asks you to open X.</p>
+    </header>
+
+    <div class="folio">
+      <span>github.com/skyspeak/socialproof</span>
+      <span>Next.js · Neon · Vercel · one LLM call a day</span>
+      <span>Free-tier architecture</span>
+    </div>
+
+    <nav class="toc" aria-label="Contents">
+      <h3 class="section">In this issue</h3>
+      <ol>
+        <li><span>The product, in one sitting</span><span class="pg">What it is</span></li>
+        <li><span>How a day is assembled</span><span class="pg">The pipeline</span></li>
+        <li><span>Seventeen sources, three tiers</span><span class="pg">The intake</span></li>
+        <li><span>What lives in Postgres</span><span class="pg">The model</span></li>
+        <li><span>Would I use any other service?</span><span class="pg">The audit</span></li>
+        <li><span>Deploying it, in order</span><span class="pg">The checklist</span></li>
+        <li><span>Keeping it alive</span><span class="pg">Operations</span></li>
+        <li><span>Honest edges</span><span class="pg">Limitations</span></li>
+      </ol>
+    </nav>
+
+    <section class="lede">
+      <div class="byline">Re-read of the repository on 21 August 2026 · verdict after walking the code, not the README</div>
+      <h2>A newspaper that writes itself once a day, then sits still.</h2>
+      <p class="drop">Trendwire is not a chatbot over a firehose. It is a dated magazine issue: ingest what the open web actually discussed in the last twenty-four hours, collapse the duplicates, spend one model call on editorial judgment, and publish a page that does not change until tomorrow. Readers get a headline, a lede, named themes with a “so what,” a people-moves column, and a source-health strip so silence is never mistaken for a quiet day.</p>
+      <p>The public surface is a Next.js App Router site. The worker is the same process. There is no queue product, no Redis, no object store, no embedding index. Postgres is the ledger, the lock, the archive, and the CMS. That is the whole machine, and after reading it again it is the right size for a once-a-day digest.</p>
+      <p>The code is already on GitHub at <span class="mono">skyspeak/socialproof</span>. This brief is the thing you can take offline: what it is, why the shape is this shape, which vendors I would keep, which I would not bother introducing, and the exact order to turn it on.</p>
+    </section>
+
+    <h3 class="section">01 — The product</h3>
+    <div class="cols">
+      <p>Each issue covers a rolling 24-hour window that closes at 13:00 UTC — the Vercel cron time. A backfill for an older date uses the same window math, so yesterday and a week ago are the same shape of job.</p>
+      <p>Pages never re-fetch Hacker News. They read published rows. Home is cached for five minutes; a dated issue for an hour. That is not a performance flourish. Neon’s free compute is metered in CU-hours, and the cache is how most visitors never wake the database.</p>
+      <p>The editorial standard is in the system prompt, not in a style guide no one reads: themes are claims, not topic labels; corroboration counts; a quiet day gets fewer themes; people moves must name a real person or they are omitted; confidence is a column — confirmed, reported, chatter — so the UI cannot upgrade a rumor by accident.</p>
+      <p>There is no email yet. RSS is wired. JSON exists for each date. <span class="mono">/api/status</span> is the operational page: unauthenticated, counts only, HTTP 503 when the newest digest failed or Postgres is unreachable, which means an uptime monitor can point at it without parsing.</p>
+    </div>
+
+    <h3 class="section">02 — How a day is assembled</h3>
+    <p>Two HTTP doors call the same function. Vercel Cron, once a day, <span class="mono">GET /api/cron/digest</span>. GitHub Actions, every fifteen minutes if you turn it on, <span class="mono">POST /api/tick</span>. Both require <span class="mono">Authorization: Bearer $CRON_SECRET</span>. Both take a lease, call <span class="mono">advance()</span>, and return a report. Neither invokes the other. An earlier design chained chunks over HTTP; Vercel may freeze a function the moment it responds, so an un-awaited fetch can die silently. That pattern is gone on purpose.</p>
+    <pre>Vercel Cron  13:00 UTC     GitHub Actions  every 15 min (optional)
+        │                              │
+        └──────────► /api/cron/digest  /api/tick ◄──
+                            │              │
+                            └──────┬───────┘
+                                   ▼
+                         acquire lease (Postgres)
+                         ingest pending sources
+                         (batches of 4, ~240s budget)
+                         synthesize → publish
+                         release lease</pre>
+    <p><span class="mono">advance()</span> does not keep a cursor column. Progress is the run log: whatever <span class="mono">run_sources</span> already recorded is, by definition, done. Resume cannot skip a source because some earlier batch failed in the middle of the list. Each invocation is guaranteed to finish at least one batch even if setup already ate the budget — otherwise a slow day livelocks, returning forever having done nothing.</p>
+    <p>Inside the 300-second Fluid-compute ceiling (Hobby included since April 2025) the pipeline keeps a 240-second internal budget and refuses to start synthesis with less than 45 seconds remaining. A measured full run is about 90 seconds. The resume path exists for slow days and overlaps, not because the happy path cannot fit.</p>
+    <p>The lock is a lease row, not <span class="mono">pg_advisory_lock</span>. Neon’s pooled endpoint is PgBouncer in transaction mode; a session lock taken through it can outlive the logical connection that took it. A row with an expiry is safe under pooling, survives a hard kill (it simply expires), and is inspectable on <span class="mono">/api/status</span>.</p>
+
+    <h4>Four stages</h4>
+    <table>
+      <thead>
+        <tr><th>Stage</th><th>What actually happens</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Ingest</td>
+          <td>Each adapter returns a normalized item list. Adapters never throw into the runner. Outcomes are <span class="mono">ok</span>, <span class="mono">empty</span>, <span class="mono">failed</span>, or <span class="mono">skipped</span>, written to <span class="mono">run_sources</span>. Upserts are keyed on <span class="mono">(source_id, external_id)</span>, so re-running a day is idempotent.</td>
+        </tr>
+        <tr>
+          <td>Dedup</td>
+          <td>Canonical URL, then content hash of title+body. The richest representative is kept. Duplicate count is retained: being carried by four sources is itself a ranking signal (+25 per extra source in <span class="mono">rankScore</span>).</td>
+        </tr>
+        <tr>
+          <td>Synthesize</td>
+          <td>Top 60 items, people-tier guaranteed a slice of 15 so a busy AI day cannot crowd them out. One JSON completion. Item indexes mapped back to row ids; invalid enums coerced; empty theme lists treated as failure and fall through to heuristics.</td>
+        </tr>
+        <tr>
+          <td>Publish</td>
+          <td>Prior themes and people moves for that digest are replaced. Status flips to <span class="mono">published</span>. The page is now a newspaper, not a query.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 class="section">03 — Seventeen sources</h3>
+    <p>No source is load-bearing. The X tier has three independent paths because mirrors die and Exa needs a key. When those go dark, Techmeme and the newsletters still carry the conversation secondhand, with a few hours’ lag. Degradation is a status chip on the page, not a missing section that looks like a quiet industry.</p>
+    <table>
+      <thead>
+        <tr><th>Tier</th><th>Slug</th><th>How it reads the world</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Core</td><td>hackernews</td><td>Algolia: stories in-window with points &gt; 30, not the live front page — so a 3am spike still makes the issue.</td></tr>
+        <tr><td>Core</td><td>hackernews-comments</td><td>Top comments in-window. Titles say what happened; comments say why people care.</td></tr>
+        <tr><td>Core</td><td>lobsters</td><td>Open API, high-signal, small.</td></tr>
+        <tr><td>Core</td><td>github-trending</td><td>Search: created in the last two weeks, stars &gt; 150. There is no official trending API.</td></tr>
+        <tr><td>Core</td><td>arxiv</td><td>cs.AI / cs.LG / cs.CL, 96-hour lookback because arXiv does not post on weekends.</td></tr>
+        <tr><td>Core</td><td>arstechnica</td><td>RSS. The one general-news feed in the core tier.</td></tr>
+        <tr><td>X-adjacent</td><td>techmeme</td><td>The load-bearing X proxy. If every direct path dies, this is what keeps the tier alive.</td></tr>
+        <tr><td>X-adjacent</td><td>reddit</td><td>r/LocalLLaMA, MachineLearning, ExperiencedDevs, programming. Unauthenticated JSON. From Vercel this usually 403s.</td></tr>
+        <tr><td>X-adjacent</td><td>exa-x</td><td>Exa semantic search scoped to x.com. Optional key.</td></tr>
+        <tr><td>X-adjacent</td><td>x-mirrors</td><td>Races Nitter-style hosts for karpathy, sama, simonw, swyx, emollick. Skips if every host is down.</td></tr>
+        <tr><td>X-adjacent</td><td>simonwillison, importai, latentspace, theverge</td><td>Newsletters and recap feeds that already did the secondhand work.</td></tr>
+        <tr><td>People</td><td>hackernews-people, techmeme-people, exa-people</td><td>Headline filters and announcement-shaped search. Empty is allowed. The UI will not invent a move to fill the column.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="section">04 — What lives in Postgres</h3>
+    <p>Eight tables, two migrations, no ORM magic beyond Drizzle. Source rows are seeded from the TypeScript registry on first run so you can disable one in production without a deploy.</p>
+    <table>
+      <thead>
+        <tr><th>Table</th><th>Job</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>sources</td><td>Registry. Unique on slug. <span class="mono">enabled</span> is the kill switch.</td></tr>
+        <tr><td>raw_items</td><td>The only table that grows. Unique on source + external id. Canonical URL and content hash for cross-source collapse.</td></tr>
+        <tr><td>digests</td><td>One row per day. Status: pending, ingesting, synthesizing, published, failed.</td></tr>
+        <tr><td>themes / theme_items</td><td>Named claims and the items that support them.</td></tr>
+        <tr><td>people_moves</td><td>Person, orgs, role, move type, confidence, evidence.</td></tr>
+        <tr><td>runs / run_sources</td><td>The observability half. A broken scraper shows up here instead of shrinking the digest.</td></tr>
+        <tr><td>locks</td><td>One row named <span class="mono">digest-pipeline</span>. Holder UUID, expiry. Stealable only when expired.</td></tr>
+      </tbody>
+    </table>
+    <p>Two connection strings. The app uses the pooled Neon URL with prepared statements off — required under transaction-mode PgBouncer. Migrations use the direct URL. <span class="mono">scripts/migrate.ts</span> prefers <span class="mono">DATABASE_URL_UNPOOLED</span> (what the Vercel Marketplace sets) then <span class="mono">DIRECT_DATABASE_URL</span>, and warns if you point it at a <span class="mono">-pooler</span> host.</p>
+    <p>Locally there is no server. <span class="mono">npm run digest:local</span> applies SQL to PGlite — real Postgres compiled to WASM — then runs the live pipeline. <span class="mono">npm test</span> covers the lease (contention, steal-on-expiry, release-on-throw), resume (every source ingested exactly once across 1ms-budget ticks), and synthesis mapping, with no network and no keys.</p>
+
+    <h3 class="section">05 — Would I use any other service?</h3>
+    <p class="byline">Re-checked against the code, the platform constraints, and the cost of a rewrite</p>
+    <p>The short answer: ship on what is already wired. Vercel for the pages, Neon for the ledger, GitHub Actions as the safety net, Anthropic (or OpenAI) for the one daily call, Exa only if you care about first-party X text. I would not introduce Redis, S3, a queue product, Cloudflare Workers, Supabase, PlanetScale, or a VPS in order to turn this on.</p>
+    <div class="verdict">
+      <div class="label">Verdict</div>
+      <p>Keep the current vendors for v1. The one architectural change I would consider later is moving the <em>pipeline</em> off Vercel functions and onto GitHub Actions, so Vercel is only a reader. That is an improvement, not a prerequisite. It is not worth delaying the first published issue.</p>
+    </div>
+    <div class="pull">A once-a-day job that already finishes in about ninety seconds does not need a new cloud. It needs a secret, a schema, and one model key.</div>
+
+    <h4>Host the pages — keep Vercel</h4>
+    <p>The site is Next.js App Router with time-based revalidation. Vercel is the native host. Cloudflare Pages via OpenNext, Netlify, or Railway would serve the HTML, but you would be buying a port for no product reason. Hobby is enough: the public routes are cheap cached reads.</p>
+    <p>What Vercel is bad at is being a worker. Hobby cron is once per day and may fire anywhere in the hour; overlapping invocations are not deduped; a handler that returns while work is still in flight can freeze. The codebase already absorbed those facts (lease, tick, no self-fetch, 240s budget). Living with them is cheaper than moving.</p>
+
+    <h4>Run the pipeline — keep Vercel for now, prefer GitHub Actions later</h4>
+    <p>If I were starting from a blank repo, I would run <span class="mono">runToCompletion()</span> inside GitHub Actions against Neon — six-hour jobs, no freeze, no 300-second wall — and let Vercel only render. The tick workflow already exists; today it HTTP-calls Vercel instead of doing the work itself. Flipping that later is a small, clean change.</p>
+    <p>I would not move the worker to Cloudflare Workers (CPU budget is wrong by an order of magnitude), Inngest or Trigger.dev (a durable-job product for one call a day), Temporal, AWS Lambda plus EventBridge (same serverless shape, more IAM), or a $5 VPS (you then own patching). Fly.io Machines are a respectable alternative if GitHub Actions ever feels cramped. They are not needed to ship.</p>
+
+    <h4>Database — keep Neon</h4>
+    <p>The schema is ordinary Postgres with unique indexes, a lease row, and versioned SQL. Neon’s pooled plus unpooled pair matches how the code is written. The Vercel Marketplace integration sets both names for you.</p>
+    <p>Supabase is also Postgres and would work, but you would be paying for Auth, Realtime, and a dashboard this app does not use, and you would lose the one-click Vercel wiring. RDS is an ops job. PlanetScale is MySQL and a rewrite. Turso / libSQL is the wrong concurrency and lock model. SQLite on the function filesystem would vanish between deploys. PGlite stays a local harness, never production.</p>
+
+    <h4>Model — keep Anthropic, keep the OpenAI failover</h4>
+    <p>One call, ~20k input tokens, 60-item corpus, ~40 seconds in measurement. Sonnet is the right default. OpenAI is already the second provider. I would not add Groq, Gemini, or a local model as a third production path until the first two have actually failed you. The heuristic fallback exists so an outage still publishes something; it is intentionally worse, and the intro says so on the page.</p>
+    <p>Do not raise <span class="mono">SYNTH_MAX_CORPUS</span> without raising <span class="mono">LLM_TIMEOUT_MS</span> and measuring. At 120 items a live Sonnet call did not return in ten minutes. On Vercel that is a killed run and a blank day.</p>
+
+    <h4>X — do not buy the X API</h4>
+    <p>Exa is the only paid source, and it is optional. Mirrors are unreliable by nature. Techmeme is the backstop. Paying for official X access would buy first-party firehose and a ToS maze for a digest that has already decided the open-web reflection is enough. Skip Exa on day one if you want; the X tier still has a pulse.</p>
+
+    <h4>Reddit — do not change hosts, add OAuth later</h4>
+    <p>The 403 is Reddit blocking unauthenticated JSON from datacenter IPs. Fly, Railway, and AWS see the same wall. Moving the app will not fix it. A Reddit OAuth app will. Until then the source correctly reports <span class="mono">skipped</span> instead of lying that the subreddits were quiet.</p>
+
+    <h4>Things I would not add</h4>
+    <table>
+      <thead>
+        <tr><th>Service</th><th>Why not</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Redis / Upstash</td><td>The lease is already a row. A second store for one lock is a new failure mode.</td></tr>
+        <tr><td>S3 / R2</td><td>Nothing to blob. The archive is rows.</td></tr>
+        <tr><td>Pinecone / embeddings</td><td>Clustering is one editorial JSON call, not nearest-neighbor.</td></tr>
+        <tr><td>Kafka / queues</td><td>Seventeen sequential fetches and one completion. A queue would idle 23 hours a day.</td></tr>
+        <tr><td>Auth (Clerk, NextAuth)</td><td>The magazine is public. Cron routes are a shared secret. That is the whole security model, and it is the right one.</td></tr>
+        <tr><td>Email now</td><td>RSS works. Resend on publish is the correct later addition, not a launch dependency.</td></tr>
+      </tbody>
+    </table>
+    <p>The only services I would consider adding after the first week of published issues: a Reddit OAuth app, Resend if you want the issue in a mailbox, and a free Better Stack or Cronitor check on <span class="mono">/api/status</span>. None of those are required to deploy tonight.</p>
+
+    <h3 class="section">06 — Deploying it, in order</h3>
+    <p>Total time is about fifteen minutes if the accounts already exist. You need GitHub (done), Vercel, and Neon. Do not visit the site until step 6. The schema is not there yet, and a missing <span class="mono">CRON_SECRET</span> makes both pipeline routes fail closed with 401 — deliberately.</p>
+    <ol class="steps">
+      <li>
+        <strong>Import the repo in Vercel.</strong>
+        Framework preset Next.js, root of <span class="mono">skyspeak/socialproof</span>. First deploy is fine. Ignore the empty-state page.
+      </li>
+      <li>
+        <strong>Attach Postgres via the Vercel Marketplace.</strong>
+        Storage → Create Database → Neon, Free, a region near you. This sets <span class="mono">DATABASE_URL</span> (pooled, runtime) and <span class="mono">DATABASE_URL_UNPOOLED</span> (direct, migrations). Prefer this over copying strings from neon.tech by hand.
+      </li>
+      <li>
+        <strong>Set secrets for Production</strong> (and Preview if you want preview deploys to work).
+        <span class="mono">CRON_SECRET</span> from <span class="mono">openssl rand -hex 32</span>.
+        One of <span class="mono">ANTHROPIC_API_KEY</span> or <span class="mono">OPENAI_API_KEY</span>.
+        <span class="mono">NEXT_PUBLIC_SITE_URL</span> as the final origin, no trailing slash.
+        <span class="mono">EXA_API_KEY</span> only if you want the two Exa sources live.
+      </li>
+      <li>
+        <strong>Apply the schema from this machine.</strong>
+        Copy <span class="mono">.env.example</span> to <span class="mono">.env</span>, paste the <em>direct</em> connection string, then <span class="mono">npm install && npm run db:migrate</span>. If you see errors about <span class="mono">SET</span> or prepared statements, you are on the pooler. Stop and use the unpooled host.
+      </li>
+      <li>
+        <strong>Redeploy production</strong> so the runtime actually has the env vars. Marketplace variables sometimes attach to a deployment that already started.
+      </li>
+      <li>
+        <strong>Trigger the first run</strong> rather than waiting until 13:00 UTC:<br />
+        <span class="mono">curl -H "Authorization: Bearer $CRON_SECRET" https://YOUR_HOST/api/cron/digest</span><br />
+        A healthy response has <span class="mono">outcome: "synthesized"</span>, something like <span class="mono">17/17</span> sources, a theme count, a provider name, and an elapsed time around one to two minutes. <span class="mono">out_of_budget</span> is not a failure — call <span class="mono">/api/tick</span> or wait for Actions.
+      </li>
+      <li>
+        <strong>Verify.</strong>
+        <span class="mono">GET /api/status</span> should show <span class="mono">database: "connected"</span>, <span class="mono">llmConfigured: true</span>, <span class="mono">latest.status: "published"</span>. Then open <span class="mono">/</span>, <span class="mono">/archive</span>, and <span class="mono">/feed.xml</span>.
+      </li>
+      <li>
+        <strong>On Hobby, turn on the tick.</strong>
+        GitHub → Settings → Secrets and variables → Actions: <span class="mono">SITE_URL</span> (no trailing slash) and the same <span class="mono">CRON_SECRET</span>. The workflow in <span class="mono">.github/workflows/tick.yml</span> is then a 15-minute resume. It is a no-op once the day is published. It also has a manual date input for backfills. On Vercel Pro you may delete it and cron every few minutes instead; both routes share <span class="mono">advance()</span>.
+      </li>
+    </ol>
+
+    <h4>Environment variables</h4>
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Need</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="mono">DATABASE_URL</span></td><td>Required</td><td>Pooled. Hostname contains <span class="mono">-pooler</span>.</td></tr>
+        <tr><td><span class="mono">DIRECT_DATABASE_URL</span> / <span class="mono">DATABASE_URL_UNPOOLED</span></td><td>Required for migrate</td><td>Marketplace sets the latter. Never run DDL through the pooler.</td></tr>
+        <tr><td><span class="mono">CRON_SECRET</span></td><td>Required in production</td><td>Unset → 401 on both pipeline routes.</td></tr>
+        <tr><td><span class="mono">ANTHROPIC_API_KEY</span> or <span class="mono">OPENAI_API_KEY</span></td><td>Strongly recommended</td><td>Without it you get term clusters, not claims.</td></tr>
+        <tr><td><span class="mono">NEXT_PUBLIC_SITE_URL</span></td><td>Recommended</td><td>RSS and canonical links. Falls back to <span class="mono">VERCEL_URL</span>.</td></tr>
+        <tr><td><span class="mono">EXA_API_KEY</span></td><td>Optional</td><td><span class="mono">exa-x</span> and <span class="mono">exa-people</span> skip without it.</td></tr>
+        <tr><td><span class="mono">ANTHROPIC_MODEL</span></td><td>Optional</td><td>Default <span class="mono">claude-sonnet-4-5</span>. Some gateways want a dated id.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="section">07 — Keeping it alive</h3>
+    <p>At this volume the bill is zero, with room. One cron, one model call, a handful of minutes of Neon compute, and — if you enable the tick — about 96 no-op function invocations a day that return in milliseconds once the issue is published.</p>
+    <table>
+      <thead>
+        <tr><th>Meter</th><th>Free allowance</th><th>This service</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Vercel functions</td><td>Generous on Hobby</td><td>~1 real run + optional tick no-ops</td></tr>
+        <tr><td>Neon compute</td><td>100 CU-hours / month</td><td>Minutes of active compute per day</td></tr>
+        <tr><td>Neon storage</td><td>0.5 GB</td><td>Grows with <span class="mono">raw_items</span> only</td></tr>
+        <tr><td>LLM</td><td>Your key</td><td>One call / day, ~20k input tokens</td></tr>
+      </tbody>
+    </table>
+    <p>Neon Free suspends compute after five minutes idle. That cannot be turned off on that plan. The first request after a nap pays a reactivation; it is not an error. Page caching exists specifically so most visits never touch Postgres.</p>
+    <p>If storage approaches the cap, prune. Writes fail until you free space:</p>
+    <pre>DELETE FROM raw_items WHERE fetched_at &lt; now() - interval '90 days';</pre>
+    <p>Public routes worth remembering:</p>
+    <table>
+      <thead>
+        <tr><th>Path</th><th>Auth</th><th>Role</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="mono">/</span></td><td>Public</td><td>Latest published issue</td></tr>
+        <tr><td><span class="mono">/digest/YYYY-MM-DD</span></td><td>Public</td><td>A specific day</td></tr>
+        <tr><td><span class="mono">/archive</span></td><td>Public</td><td>Every issue</td></tr>
+        <tr><td><span class="mono">/feed.xml</span></td><td>Public</td><td>RSS</td></tr>
+        <tr><td><span class="mono">/api/digest/latest</span> or <span class="mono">/:date</span></td><td>Public</td><td>JSON</td></tr>
+        <tr><td><span class="mono">/api/status</span></td><td>Public</td><td>Health; 503 if failed or DB down</td></tr>
+        <tr><td><span class="mono">/api/cron/digest</span></td><td>Bearer</td><td>Daily kickoff</td></tr>
+        <tr><td><span class="mono">/api/tick?date=</span></td><td>Bearer</td><td>Resume or backfill</td></tr>
+      </tbody>
+    </table>
+
+    <h4>When it misbehaves</h4>
+    <table>
+      <thead>
+        <tr><th>What you see</th><th>What it actually is</th><th>What to do</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Cron 401</td><td>Secret missing or mismatched</td><td>Set it, redeploy. Env changes do not hot-reload on Vercel.</td></tr>
+        <tr><td>Deploy fails on the cron expression</td><td>Hobby rejects sub-daily schedules</td><td>Keep <span class="mono">0 13 * * *</span>. Use the Actions tick for frequency.</td></tr>
+        <tr><td><span class="mono">out_of_budget</span> repeatedly</td><td>Sources are slow</td><td>Each tick still advances. Watch <span class="mono">pending</span> shrink on status.</td></tr>
+        <tr><td><span class="mono">skipped: locked</span></td><td>Another run holds the lease</td><td>Expected under overlap. Leases expire on their own.</td></tr>
+        <tr><td>reddit always skipped</td><td>Datacenter 403</td><td>Expected. OAuth later. Do not “fix” by changing clouds.</td></tr>
+        <tr><td>Themes like “deepseek / harness / plugin”</td><td>No key, or the model call failed</td><td>Check <span class="mono">llmConfigured</span>. The intro will admit the fallback.</td></tr>
+        <tr><td>“database isn’t reachable”</td><td>Schema not applied, or cold Neon plus a bad URL</td><td><span class="mono">npm run db:migrate</span> against the direct string.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="section">08 — Honest edges</h3>
+    <div class="cols">
+      <p>Reddit from Vercel is dark until OAuth exists. X mirrors die constantly; that is why the tier is a braid, not a single pipe. arXiv is empty on weekends by policy, which is why its lookback is 96 hours and dedup eats the overlap.</p>
+      <p>The heuristic fallback is genuinely worse. It exists so the service still publishes during an outage, not as a substitute editor. One LLM call a day caps cost and also caps nuance. The corpus is 60 items because 120 did not return in time.</p>
+      <p>There is no email. Adding Resend at persist-time is small and obvious; it is simply not built. Neon Free will always cold-start. That is a latency tax, not a pager.</p>
+      <p>Hobby cron is a poor recovery story by itself. If a run dies at 13:01 you wait until tomorrow unless the GitHub tick is on. Turn it on.</p>
+    </div>
+
+    <h3 class="section">How to read this file later</h3>
+    <p>This file is <span class="mono">magazine.html</span> at the root of the repository. It has no build step and no network dependency. Double-click it, or from the project directory run <span class="mono">open magazine.html</span> on a Mac. To keep a paper or PDF copy: Print, then Save as PDF. The screen bar at the top will not appear on the page.</p>
+    <p>Local practice, if you want to see a digest before the cloud is wired:</p>
+    <pre>npm install
+npm test
+npm run digest:local</pre>
+    <p>The last command talks to live sources and, if you have a model key in the environment, will spend one real completion. Without a key it still publishes, via heuristics.</p>
+
+    <footer class="colophon">
+      <p>Trendwire Operator’s Brief, Vol. 1 · 21 August 2026 · assembled from the repository at github.com/skyspeak/socialproof · code name in package.json remains “trendwire” · stack: Next.js 16, Drizzle, Neon, Vercel Cron, GitHub Actions · typefaces on screen: Iowan Old Style and Avenir Next when the OS has them, Georgia otherwise · no analytics in this file.</p>
+    </footer>
+  </article>
+</body>
+</html>
