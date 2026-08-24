@@ -6,7 +6,7 @@ Ingests Hacker News, Lobsters, GitHub, arXiv, Techmeme, Reddit and the open-web 
 
 **Stack:** Next.js (App Router) on Vercel · Postgres via Drizzle · Vercel Cron
 
-**Operator’s brief:** open [`magazine.html`](./magazine.html) in a browser — it works offline. Print or Save as PDF from there.
+**Operator’s magazine (offline):** open [`magazine.html`](./magazine.html). Vol. 2 is an argument about the architecture, not a restatement of this README. Print or Save as PDF from the browser.
 
 ---
 
