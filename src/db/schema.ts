@@ -93,6 +93,8 @@ export const digests = pgTable(
     headline: text("headline"),
     itemCount: integer("item_count").notNull().default(0),
     generatedAt: timestamp("generated_at", { withTimezone: true }),
+    /** Model id (gemini, openrouter, …) or `wire` when the editorial call did not run. */
+    provider: text("provider"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

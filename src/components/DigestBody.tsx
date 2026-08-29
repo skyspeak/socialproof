@@ -1,4 +1,5 @@
 import type { DigestView } from "@/db/queries";
+import { isWeekendEdition } from "@/lib/continuity";
 
 const MOVE_LABEL: Record<string, string> = {
   departure: "Departure",
@@ -24,21 +25,51 @@ function formatDate(dateKey: string): string {
 
 export function DigestBody({ digest }: { digest: DigestView }) {
   const failed = digest.sourceHealth.filter((s) => s.status === "failed");
+  const weekend = isWeekendEdition(digest.date);
+  const isWire = digest.edition === "wire";
+  const minute = isWire
+    ? []
+    : digest.themes
+        .filter((t) => t.soWhat)
+        .slice(0, 3)
+        .map((t) => ({ name: t.name, soWhat: t.soWhat as string }));
 
   return (
     <>
       <div className="folio">
         <span>{formatDate(digest.date)}</span>
         <nav>
+          {digest.prevDate ? (
+            <a href={`/digest/${digest.prevDate}`}>Previous</a>
+          ) : null}
+          {digest.nextDate ? (
+            <a href={`/digest/${digest.nextDate}`}>Next</a>
+          ) : null}
           <a href="/archive">Archive</a>
           <a href={`/api/digest/${digest.date}`}>JSON</a>
           <a href="/feed.xml">RSS</a>
         </nav>
       </div>
 
+      {isWire ? (
+        <p className="banner wire">
+          Wire edition. The model did not produce an editorial issue. Ranked
+          intake follows — not clustered themes.
+        </p>
+      ) : null}
+
+      {weekend ? (
+        <p className="banner weekend">
+          Weekend edition. arXiv uses a 96-hour lookback because it does not
+          post on Saturday or Sunday; duplicates from Friday are collapsed.
+        </p>
+      ) : null}
+
       <section className="lede">
         <div>
-          <div className="kicker">The day in one line</div>
+          <div className="kicker">
+            {isWire ? "Lead item" : "The day in one line"}
+          </div>
           <h2>{digest.headline ?? "No single story dominated."}</h2>
           {digest.intro ? <p className="intro">{digest.intro}</p> : null}
         </div>
@@ -46,7 +77,7 @@ export function DigestBody({ digest }: { digest: DigestView }) {
           <dl>
             <dt>Items</dt>
             <dd>{digest.itemCount}</dd>
-            <dt>Themes</dt>
+            <dt>{isWire ? "On the wire" : "Themes"}</dt>
             <dd>{digest.themes.length}</dd>
             <dt>People</dt>
             <dd>{digest.people.length}</dd>
@@ -64,8 +95,23 @@ export function DigestBody({ digest }: { digest: DigestView }) {
         </aside>
       </section>
 
+      {minute.length ? (
+        <>
+          <div className="section-rule">
+            <h3>If you only have a minute</h3>
+          </div>
+          <ol className="minute">
+            {minute.map((m) => (
+              <li key={m.name}>
+                <strong>{m.name}.</strong> {m.soWhat}
+              </li>
+            ))}
+          </ol>
+        </>
+      ) : null}
+
       <div className="section-rule">
-        <h3>What the day argued about</h3>
+        <h3>{isWire ? "The wire" : "What the day argued about"}</h3>
       </div>
 
       {digest.themes.length === 0 ? (
@@ -77,7 +123,15 @@ export function DigestBody({ digest }: { digest: DigestView }) {
               <span className={theme.isNew ? "tag new" : "tag"}>
                 {theme.isNew ? "New today" : "Ongoing"}
               </span>
+              {theme.continuedFrom ? (
+                <span className="continued">
+                  Continued from {theme.continuedFrom.date}
+                </span>
+              ) : null}
               <h4>{theme.name}</h4>
+              {theme.desks.length >= 2 ? (
+                <p className="desks">{theme.desks.join(" · ")}</p>
+              ) : null}
               <p>{theme.summary}</p>
               {theme.soWhat ? <p className="so-what">{theme.soWhat}</p> : null}
               {theme.items.length ? (
@@ -171,14 +225,7 @@ export function DigestBody({ digest }: { digest: DigestView }) {
       </div>
 
       {failed.length ? (
-        <p
-          style={{
-            fontFamily: "var(--sans)",
-            fontSize: "0.8rem",
-            color: "var(--ink-mute)",
-            marginTop: "1rem",
-          }}
-        >
+        <p className="health-note">
           {failed.length} source{failed.length === 1 ? "" : "s"} failed this run.
           The digest is built from what did return — nothing was substituted
           silently.

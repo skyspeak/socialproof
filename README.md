@@ -39,7 +39,7 @@ See **[DEPLOY.md](./DEPLOY.md)** for the full cloud rationale and deployment ste
 
 1. **Ingest** — each source adapter normalizes into `raw_items`. Adapters never throw into the runner; every outcome (`ok` / `empty` / `failed` / `skipped`) is written to `run_sources`.
 2. **Dedup** — canonical URL plus content hash collapse the same story arriving from several sources. Corroboration count is retained, because being carried by four sources is itself a signal.
-3. **Synthesize** — the top 60 deduped items go to one LLM call returning themes and people moves as JSON. Item indexes are mapped back to real row ids; enum fields are validated.
+3. **Synthesize** — the top 60 deduped items go to one LLM call (Gemini, OpenRouter, Anthropic, or OpenAI) returning themes and people moves as JSON. Item indexes are mapped back to real row ids; enum fields are validated.
 4. **Publish** — the digest flips to `published`. Pages read from Postgres and never re-fetch sources.
 
 ### Sources
@@ -61,7 +61,7 @@ in **[DEPLOY.md](./DEPLOY.md)**. The short version:
 
 ```bash
 npx vercel                 # deploy
-# set DATABASE_URL, CRON_SECRET, and an LLM key in Vercel
+# set DATABASE_URL, CRON_SECRET, and GEMINI_API_KEY or OPENROUTER_API_KEY in Vercel
 npm run db:migrate         # apply schema via the DIRECT (unpooled) connection
 npx vercel --prod
 curl -H "Authorization: Bearer $CRON_SECRET" https://<you>.vercel.app/api/cron/digest
@@ -130,7 +130,7 @@ Being straight about the edges rather than discovering them in production:
 - **Reddit 403s from datacenter IPs.** Unauthenticated `.json` reads are blocked from most cloud hosts, including Vercel. The source reports `skipped` with that reason rather than pretending the day was quiet. Making it reliable means registering a Reddit OAuth app and adding client credentials.
 - **X mirror instances are unreliable by nature.** The adapter races a list and skips when all are down. This is expected, not a bug — it's why the X tier has three independent paths.
 - **arXiv doesn't publish on weekends.** That source uses a 96-hour lookback instead of 24 so Saturday and Sunday issues aren't empty; dedup absorbs the overlap.
-- **The heuristic fallback is genuinely worse.** Without an LLM key you get term clusters ("deepseek / harness / plugin") rather than claims about what happened. It exists to keep the service publishing during an outage, not as a substitute. The intro text says so on the page when it engages.
+- **The wire fallback is deliberately not editorial.** Without an LLM key, or when the call fails, the issue publishes as a ranked intake list labeled "wire edition" — not heuristic term clusters pretending to be themes.
 - **One LLM call per day** caps cost but also caps nuance; the corpus is trimmed to the top 60 deduped items, with the people tier guaranteed representation so a busy AI news day can't crowd it out.
 - **No email delivery yet.** RSS is wired; adding Resend on publish is a small addition to the synthesis step.
 - **Neon Free suspends compute after 5 minutes idle** and can't be configured otherwise on that plan. First request to a cold site pays a reactivation latency; it is not an error. Page caching keeps most visits off the database.

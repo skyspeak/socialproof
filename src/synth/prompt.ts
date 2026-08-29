@@ -13,9 +13,10 @@ Your standards:
 export type SynthesisRequest = {
   date: string;
   items: DedupedItem[];
+  previousThemes?: string[];
 };
 
-export function buildUserPrompt({ date, items }: SynthesisRequest): string {
+export function buildUserPrompt({ date, items, previousThemes }: SynthesisRequest): string {
   const lines = items.map((it, i) => {
     const bits = [
       `[${i}] ${it.title}`,
@@ -31,10 +32,15 @@ export function buildUserPrompt({ date, items }: SynthesisRequest): string {
     return bits.join("\n");
   });
 
+  const yesterday =
+    previousThemes && previousThemes.length
+      ? `Yesterday's published themes — mark isNew false when today's theme is the same story, even if the wording changed:\n${previousThemes.map((n) => `- ${n}`).join("\n")}\n\n`
+      : "";
+
   return `Digest date: ${date}
 Items collected in the last 24 hours: ${items.length}
 
-Return ONLY a JSON object with this exact shape:
+${yesterday}Return ONLY a JSON object with this exact shape:
 
 {
   "headline": "one sentence: the single most important thing that happened",
@@ -65,7 +71,7 @@ Return ONLY a JSON object with this exact shape:
 Rules:
 - 4 to 7 themes, ordered most to least important. Fewer if the day was genuinely quiet.
 - "itemIndexes" must reference the numbered items below; include 2-6 per theme where available.
-- "isNew" is false when this is an ongoing story the reader has likely been tracking for days.
+- "isNew" is false when yesterday already published this story. Prefer that list over a hunch.
 - peopleMoves may be an empty array. Only include a move if the source material names a real person. Do not infer moves from speculation.
 
 ITEMS:

@@ -35,7 +35,10 @@ export default async function ArchivePage() {
                       ? "Untitled issue"
                       : `(${d.status})`)}
                 </span>
-                <span className="count">{d.itemCount} items</span>
+                <span className="count">
+                  {d.provider === "wire" ? "Wire · " : ""}
+                  {d.itemCount} items
+                </span>
               </a>
             </li>
           ))}

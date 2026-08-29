@@ -15,6 +15,13 @@
       "when": 1787031633606,
       "tag": "0001_great_kid_colt",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787850000000,
+      "tag": "0002_edition_provider",
+      "breakpoints": true
     }
   ]
 }

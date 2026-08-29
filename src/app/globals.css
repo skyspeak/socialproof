@@ -273,6 +273,63 @@ a {
   color: var(--accent);
 }
 
+.continued {
+  font-family: var(--sans);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-left: 0.6rem;
+}
+
+.desks {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+  margin: 0 0 0.55rem !important;
+}
+
+.banner {
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  padding: 0.85rem 1rem;
+  margin: 1.2rem 0 0;
+  border: 1px solid var(--rule);
+}
+
+.banner.wire {
+  border-color: var(--chatter);
+  color: var(--chatter);
+}
+
+.banner.weekend {
+  color: var(--ink-soft);
+}
+
+.minute {
+  margin: 0 0 0.5rem;
+  padding: 0 0 0 1.2rem;
+}
+
+.minute li {
+  margin: 0 0 0.75rem;
+  padding-left: 0.4rem;
+}
+
+.minute strong {
+  font-family: var(--display);
+}
+
+.health-note {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--ink-mute);
+  margin-top: 1rem;
+}
+
 .sources {
   list-style: none;
   margin: 1rem 0 0;

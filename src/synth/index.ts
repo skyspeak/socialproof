@@ -1,9 +1,14 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
+import {
+  getPreviousThemeNames,
+  getRecentMoveFingerprints,
+} from "@/db/queries";
+import { applyContinuity, dropRepeatMoves } from "@/lib/continuity";
 import { digests, peopleMoves, themeItems, themes } from "@/db/schema";
 import type { DedupedItem } from "@/ingest/run";
 import type { Window } from "@/lib/window";
-import { heuristicSynthesis, rankScore } from "./heuristic";
+import { rankScore } from "./heuristic";
 import { completeJson, hasLlm, parseJsonLoose } from "./llm";
 import { buildUserPrompt, SYSTEM_PROMPT } from "./prompt";
 import {
@@ -12,6 +17,7 @@ import {
   type ModelOutput,
   type SynthesisOutput,
 } from "./types";
+import { wireSynthesis } from "./wire";
 
 /**
  * Corpus cap, tuned by measurement rather than guesswork.
@@ -114,28 +120,45 @@ export async function synthesize(
   }
 
   const corpus = selectCorpus(items);
+  const previous = await getPreviousThemeNames(window.date).catch(() => []);
+  const recentMoves = await getRecentMoveFingerprints(window.date).catch(
+    () => new Set<string>(),
+  );
+
+  const finish = (output: SynthesisOutput): SynthesisOutput => {
+    const people = dropRepeatMoves(output.peopleMoves, recentMoves);
+    if (output.provider === "wire") {
+      return { ...output, peopleMoves: people };
+    }
+    return {
+      ...output,
+      themes: applyContinuity(output.themes, previous),
+      peopleMoves: people,
+    };
+  };
 
   if (!hasLlm()) {
-    return heuristicSynthesis(items, window.date);
+    return finish(wireSynthesis(items, window.date, "no language model configured"));
   }
 
   try {
     const { text, provider } = await completeJson(
       SYSTEM_PROMPT,
-      buildUserPrompt({ date: window.date, items: corpus }),
+      buildUserPrompt({
+        date: window.date,
+        items: corpus,
+        previousThemes: previous.map((p) => p.name),
+      }),
       MAX_OUTPUT_TOKENS,
     );
     const parsed = parseJsonLoose<ModelOutput>(text);
     const mapped = mapModelOutput(parsed, corpus, provider);
     // A model that returns no usable themes is a failure, not a quiet day.
     if (mapped.themes.length === 0) throw new Error("model returned no themes");
-    return mapped;
+    return finish(mapped);
   } catch (err) {
-    const fallback = heuristicSynthesis(items, window.date);
-    fallback.intro = `${fallback.intro} (Model synthesis failed: ${
-      err instanceof Error ? err.message : String(err)
-    })`;
-    return fallback;
+    const reason = err instanceof Error ? err.message : String(err);
+    return finish(wireSynthesis(items, window.date, reason));
   }
 }
 
@@ -203,6 +226,7 @@ export async function persistSynthesis(
       intro: output.intro,
       itemCount,
       generatedAt: new Date(),
+      provider: output.provider,
     })
     .where(eq(digests.id, digestId));
 }

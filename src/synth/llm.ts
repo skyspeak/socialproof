@@ -1,12 +1,24 @@
 /**
  * Provider-agnostic JSON completion.
  *
- * Anthropic first, OpenAI second, and if neither key is present the caller
- * falls back to heuristic clustering. Kept deliberately thin — one call a day
- * doesn't justify an SDK dependency.
+ * Gemini and OpenRouter are first-class. Anthropic and OpenAI remain available.
+ * If `LLM_PROVIDER` is unset, configured keys are tried in this order:
+ * gemini → openrouter → anthropic → openai. A failed hop continues to the
+ * next key rather than dropping straight to heuristics.
+ *
+ * Still no SDK — one call a day does not justify the dependency.
  */
 
 export type LlmResult = { text: string; provider: string };
+
+export type ProviderId = "gemini" | "openrouter" | "anthropic" | "openai";
+
+const ALL_PROVIDERS: ProviderId[] = [
+  "gemini",
+  "openrouter",
+  "anthropic",
+  "openai",
+];
 
 /**
  * Hard ceiling on the model call.
@@ -18,8 +30,158 @@ export type LlmResult = { text: string; provider: string };
  */
 const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? 120_000);
 
+function geminiKey(): string | undefined {
+  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || undefined;
+}
+
+export function configuredProviders(): ProviderId[] {
+  const present = new Set<ProviderId>();
+  if (geminiKey()) present.add("gemini");
+  if (process.env.OPENROUTER_API_KEY) present.add("openrouter");
+  if (process.env.ANTHROPIC_API_KEY) present.add("anthropic");
+  if (process.env.OPENAI_API_KEY) present.add("openai");
+
+  const pin = process.env.LLM_PROVIDER?.trim();
+  if (pin) {
+    const wanted = pin
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter((s): s is ProviderId => (ALL_PROVIDERS as string[]).includes(s));
+    return wanted.filter((id) => present.has(id));
+  }
+
+  return ALL_PROVIDERS.filter((id) => present.has(id));
+}
+
 export function hasLlm(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY);
+  return configuredProviders().length > 0;
+}
+
+async function callGemini(
+  system: string,
+  user: string,
+  maxTokens: number,
+): Promise<LlmResult> {
+  const key = geminiKey();
+  if (!key) throw new Error("GEMINI_API_KEY is not set");
+
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-pro";
+  const base = (
+    process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta"
+  ).replace(/\/$/, "");
+  const url = `${base}/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: system }] },
+      contents: [{ role: "user", parts: [{ text: user }] }],
+      generationConfig: {
+        maxOutputTokens: maxTokens,
+        responseMimeType: "application/json",
+        temperature: 0.3,
+      },
+    }),
+    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  }
+
+  const data = (await res.json()) as {
+    promptFeedback?: { blockReason?: string };
+    candidates?: Array<{
+      finishReason?: string;
+      content?: { parts?: Array<{ text?: string }> };
+    }>;
+  };
+
+  if (data.promptFeedback?.blockReason) {
+    throw new Error(`Gemini blocked the prompt: ${data.promptFeedback.blockReason}`);
+  }
+
+  const text = (data.candidates?.[0]?.content?.parts ?? [])
+    .map((p) => p.text ?? "")
+    .join("");
+  if (!text.trim()) {
+    throw new Error(
+      `Gemini returned empty text (finishReason=${data.candidates?.[0]?.finishReason ?? "none"})`,
+    );
+  }
+  return { text, provider: "gemini" };
+}
+
+async function callOpenAiCompatible(opts: {
+  provider: "openai" | "openrouter";
+  url: string;
+  key: string;
+  model: string;
+  headers?: Record<string, string>;
+  system: string;
+  user: string;
+  maxTokens: number;
+}): Promise<LlmResult> {
+  const res = await fetch(opts.url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${opts.key}`,
+      ...opts.headers,
+    },
+    body: JSON.stringify({
+      model: opts.model,
+      max_tokens: opts.maxTokens,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: opts.system },
+        { role: "user", content: opts.user },
+      ],
+    }),
+    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+  });
+
+  if (!res.ok) {
+    throw new Error(
+      `${opts.provider} ${res.status}: ${(await res.text()).slice(0, 300)}`,
+    );
+  }
+
+  const data = (await res.json()) as {
+    choices: Array<{ message?: { content?: string | null } }>;
+  };
+  return {
+    text: data.choices[0]?.message?.content ?? "",
+    provider: opts.provider,
+  };
+}
+
+async function callOpenRouter(
+  system: string,
+  user: string,
+  maxTokens: number,
+): Promise<LlmResult> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error("OPENROUTER_API_KEY is not set");
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL || "https://trendwire.local";
+  const base = (
+    process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1"
+  ).replace(/\/$/, "");
+  return callOpenAiCompatible({
+    provider: "openrouter",
+    url: `${base}/chat/completions`,
+    key,
+    model: process.env.OPENROUTER_MODEL || "google/gemini-2.5-pro",
+    headers: {
+      "HTTP-Referer": site,
+      "X-Title": "Trendwire",
+    },
+    system,
+    user,
+    maxTokens,
+  });
 }
 
 async function callAnthropic(
@@ -63,33 +225,37 @@ async function callOpenAI(
   user: string,
   maxTokens: number,
 ): Promise<LlmResult> {
-  const base = process.env.OPENAI_BASE_URL ?? "https://api.openai.com";
-  const res = await fetch(`${base}/v1/chat/completions`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${process.env.OPENAI_API_KEY!}`,
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || "gpt-4o",
-      max_tokens: maxTokens,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-    }),
-    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+  const base = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com").replace(
+    /\/$/,
+    "",
+  );
+  return callOpenAiCompatible({
+    provider: "openai",
+    url: `${base}/v1/chat/completions`,
+    key: process.env.OPENAI_API_KEY!,
+    model: process.env.OPENAI_MODEL || "gpt-4o",
+    system,
+    user,
+    maxTokens,
   });
+}
 
-  if (!res.ok) {
-    throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
+async function dispatch(
+  id: ProviderId,
+  system: string,
+  user: string,
+  maxTokens: number,
+): Promise<LlmResult> {
+  switch (id) {
+    case "gemini":
+      return callGemini(system, user, maxTokens);
+    case "openrouter":
+      return callOpenRouter(system, user, maxTokens);
+    case "anthropic":
+      return callAnthropic(system, user, maxTokens);
+    case "openai":
+      return callOpenAI(system, user, maxTokens);
   }
-
-  const data = (await res.json()) as {
-    choices: Array<{ message: { content: string } }>;
-  };
-  return { text: data.choices[0]?.message?.content ?? "", provider: "openai" };
 }
 
 export async function completeJson(
@@ -97,13 +263,25 @@ export async function completeJson(
   user: string,
   maxTokens = 8000,
 ): Promise<LlmResult> {
-  if (process.env.ANTHROPIC_API_KEY) {
-    return callAnthropic(system, user, maxTokens);
+  const providers = configuredProviders();
+  if (providers.length === 0) {
+    throw new Error(
+      "No LLM provider configured. Set GEMINI_API_KEY, OPENROUTER_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.",
+    );
   }
-  if (process.env.OPENAI_API_KEY) {
-    return callOpenAI(system, user, maxTokens);
+
+  const errors: string[] = [];
+  for (const id of providers) {
+    try {
+      return await dispatch(id, system, user, maxTokens);
+    } catch (err) {
+      errors.push(
+        `${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
-  throw new Error("No LLM provider configured");
+
+  throw new Error(`All LLM providers failed. ${errors.join(" | ")}`);
 }
 
 /** Models sometimes wrap JSON in prose or fences; recover the object. */

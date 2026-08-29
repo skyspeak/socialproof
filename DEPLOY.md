@@ -84,9 +84,12 @@ Vercel dashboard → **Settings → Environment Variables**. Set for **Productio
 | `DATABASE_URL` | yes | Pooled Neon string. Set for you by the Marketplace integration. |
 | `DIRECT_DATABASE_URL` | only with Option B | Direct Neon string. With the integration, `DATABASE_URL_UNPOOLED` is already set and used automatically. |
 | `CRON_SECRET` | yes | `openssl rand -hex 32`. Vercel sends it as `Authorization: Bearer …` on cron calls. |
-| `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` | strongly recommended | Without it the digest publishes heuristic term clusters instead of editorial themes. |
-| `NEXT_PUBLIC_SITE_URL` | recommended | Your final URL, e.g. `https://trendwire.vercel.app`. Used for RSS links. |
+| `GEMINI_API_KEY` or `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` | strongly recommended | Tried in that order. Without any, the digest publishes heuristic term clusters. |
+| `LLM_PROVIDER` | optional | Pin a provider or chain, e.g. `gemini` or `gemini,openrouter`. |
+| `NEXT_PUBLIC_SITE_URL` | recommended | Your final URL, e.g. `https://trendwire.vercel.app`. Used for RSS links and OpenRouter's HTTP-Referer. |
 | `EXA_API_KEY` | optional | Enables X-scoped semantic search and the Exa people pass. Without it those two sources report `skipped`. |
+| `GEMINI_MODEL` | optional | Defaults to `gemini-2.5-pro`. |
+| `OPENROUTER_MODEL` | optional | Defaults to `google/gemini-2.5-pro`. |
 | `ANTHROPIC_MODEL` | optional | Defaults to `claude-sonnet-4-5`. Some gateways require a dated id like `claude-sonnet-4-5-20250929`. |
 | `SYNTH_MAX_CORPUS` | optional | Defaults to 60. See tuning note below. |
 | `LLM_TIMEOUT_MS` | optional | Defaults to 120000. |

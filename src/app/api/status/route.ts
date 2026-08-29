@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { digests, runSources, runs } from "@/db/schema";
 import { ALL_SOURCES } from "@/ingest/registry";
 import { inspectLock } from "@/lib/lock";
-import { hasLlm } from "@/synth/llm";
+import { configuredProviders, hasLlm } from "@/synth/llm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,6 +36,7 @@ export async function GET() {
           digests: 0,
           message: "No digest yet. Trigger /api/cron/digest.",
           llmConfigured: hasLlm(),
+          llmProviders: configuredProviders(),
           sourcesRegistered: ALL_SOURCES.length,
         },
         { status: 200 },
@@ -71,6 +72,7 @@ export async function GET() {
         ok: !degraded,
         database: "connected",
         llmConfigured: hasLlm(),
+        llmProviders: configuredProviders(),
         exaConfigured: Boolean(process.env.EXA_API_KEY),
         latest: {
           date: latest.digestDate,
