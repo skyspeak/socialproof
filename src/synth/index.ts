@@ -37,14 +37,18 @@ const MAX_OUTPUT_TOKENS = Number(process.env.SYNTH_MAX_TOKENS ?? 5000);
 export function selectCorpus(items: DedupedItem[]): DedupedItem[] {
   const ranked = [...items].sort((a, b) => rankScore(b) - rankScore(a));
 
-  // Guarantee the people tier gets representation even if it scores low —
-  // otherwise a busy AI news day would crowd the people beat out entirely.
+  // Guarantee saved tweets and the people beat get seats even if they score
+  // low — otherwise a busy HN day would crowd both out.
+  const saved = ranked.filter((i) => i.tier === "saved").slice(0, 20);
   const people = ranked.filter((i) => i.tier === "people").slice(0, 15);
-  const rest = ranked.filter((i) => i.tier !== "people");
+  const rest = ranked.filter((i) => i.tier !== "people" && i.tier !== "saved");
 
-  const merged = [...people];
-  for (const item of rest) {
+  const seen = new Set<string>();
+  const merged: DedupedItem[] = [];
+  for (const item of [...saved, ...people, ...rest]) {
+    if (seen.has(item.id)) continue;
     if (merged.length >= MAX_CORPUS) break;
+    seen.add(item.id);
     merged.push(item);
   }
   return merged;

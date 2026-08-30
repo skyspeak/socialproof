@@ -21,7 +21,8 @@ export function rankScore(item: DedupedItem): number {
   const chatter = Math.log1p(item.commentCount ?? 0) * 6;
   const corroboration = (item.duplicateCount - 1) * 25;
   const velocityBoost = Math.min(item.velocity ?? 0, 100) * 0.4;
-  const tierBoost = item.tier === "people" ? 8 : 0;
+  const tierBoost =
+    item.tier === "saved" ? 20 : item.tier === "people" ? 8 : 0;
   return base + chatter + corroboration + velocityBoost + tierBoost;
 }
 

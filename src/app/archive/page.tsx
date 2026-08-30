@@ -2,42 +2,41 @@ import { getDigestDates } from "@/db/queries";
 
 export const revalidate = 600;
 
-export const metadata = { title: "Archive — Trendwire" };
+export const metadata = { title: "Back issues — Trendwire" };
+
+function formatDate(dateKey: string): string {
+  const d = new Date(`${dateKey}T12:00:00Z`);
+  return d.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
 
 export default async function ArchivePage() {
   const dates = await getDigestDates(120).catch(() => []);
+  const issues = dates.filter((d) => d.status === "published");
 
   return (
     <>
-      <div className="folio">
-        <span>Archive</span>
-        <nav>
-          <a href="/">Latest</a>
-          <a href="/feed.xml">RSS</a>
-        </nav>
-      </div>
+      <header className="mast-compact">
+        <a href="/">Trendwire</a>
+        <span>Back issues</span>
+      </header>
 
-      <div className="section-rule">
-        <h3>Every issue</h3>
-      </div>
+      <h3 className="hed">The stack</h3>
 
-      {dates.length === 0 ? (
-        <p className="empty">Nothing archived yet.</p>
+      {issues.length === 0 ? (
+        <p className="quiet">Nothing in the stack yet.</p>
       ) : (
         <ul className="archive">
-          {dates.map((d) => (
+          {issues.map((d) => (
             <li key={d.date}>
               <a href={`/digest/${d.date}`}>
-                <span className="date">{d.date}</span>
+                <span className="date">{formatDate(d.date)}</span>
                 <span className="headline">
-                  {d.headline ??
-                    (d.status === "published"
-                      ? "Untitled issue"
-                      : `(${d.status})`)}
-                </span>
-                <span className="count">
-                  {d.provider === "wire" ? "Wire · " : ""}
-                  {d.itemCount} items
+                  {d.headline ?? "Untitled issue"}
                 </span>
               </a>
             </li>

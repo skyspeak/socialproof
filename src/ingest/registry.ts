@@ -9,6 +9,7 @@ import { reddit } from "./sources/reddit";
 import { githubTrending } from "./sources/github";
 import { arxiv } from "./sources/arxiv";
 import { techmeme, techmemePeople, newsletters } from "./sources/rss";
+import { bookmarksSource } from "./sources/bookmarks";
 import { exaX, exaPeopleMoves, xMirrors } from "./sources/x-tier";
 
 /**
@@ -34,6 +35,9 @@ export const ALL_SOURCES: SourceDef[] = [
   hackerNewsPeople,
   techmemePeople,
   exaPeopleMoves,
+
+  // Reader-selected — bookmarklet / native X bookmarks
+  bookmarksSource,
 ];
 
 export function sourceBySlug(slug: string): SourceDef | undefined {

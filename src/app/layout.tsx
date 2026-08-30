@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import { display, sans, serif } from "@/lib/fonts";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Trendwire — the daily tech read, without X",
+  title: "Trendwire",
   description:
-    "A daily digest of what technology actually argued about: Hacker News, the open forums, and the X conversation as it reaches the open web. Plus who left, who joined, and who started something.",
+    "A daily magazine of what technology actually argued about, assembled without opening the sites.",
 };
 
 export default function RootLayout({
@@ -13,18 +16,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      className={`${display.variable} ${serif.variable} ${sans.variable}`}
+      suppressHydrationWarning
+    >
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Libre+Franklin:wght@400;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap"
-          rel="stylesheet"
-        />
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <link
           rel="alternate"
           type="application/rss+xml"
@@ -33,25 +31,25 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <div className="shell">
-          <header className="masthead">
-            <h1>
-              <a href="/">Trendwire</a>
-            </h1>
-            <div className="tagline">
-              The daily technology read · assembled without opening X
+        <div className="desk">
+          <div className="sheet">
+            <div className="lamp">
+              <ThemeToggle />
             </div>
-          </header>
-          {children}
-          <footer className="colophon">
-            <span>
-              Assembled daily from Hacker News, Lobsters, GitHub, arXiv,
-              Techmeme, Reddit and the open-web reflection of X.
-            </span>
-            <span>
-              <a href="/feed.xml">RSS</a> · <a href="/archive">Archive</a>
-            </span>
-          </footer>
+            {children}
+            <footer className="colophon">
+              <span>
+                Typeset daily from the open web. The sites stay closed.
+              </span>
+              <span>
+                <a href="/archive">Back issues</a>
+                {" · "}
+                <a href="/save">Save a tweet</a>
+                {" · "}
+                <a href="/feed.xml">RSS</a>
+              </span>
+            </footer>
+          </div>
         </div>
       </body>
     </html>

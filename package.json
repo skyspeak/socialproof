@@ -11,7 +11,7 @@
     "db:push": "drizzle-kit push",
     "digest:local": "tsx scripts/run-local.ts",
     "db:migrate": "tsx scripts/migrate.ts",
-    "test": "tsx scripts/test-lock.ts && tsx scripts/test-resume.ts && tsx scripts/test-continuity.ts && tsx scripts/test-synthesis.ts"
+    "test": "tsx scripts/test-lock.ts && tsx scripts/test-resume.ts && tsx scripts/test-continuity.ts && tsx scripts/test-synthesis.ts && tsx scripts/test-bookmarks.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.5",

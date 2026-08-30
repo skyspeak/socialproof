@@ -49,8 +49,11 @@ See **[DEPLOY.md](./DEPLOY.md)** for the full cloud rationale and deployment ste
 | Core (open APIs) | Hacker News stories, HN top comments, Lobsters, GitHub new+rising, arXiv cs.AI/LG/CL, Ars Technica |
 | X-adjacent | Techmeme, Reddit, Exa semantic search scoped to x.com, X mirror frontends, Simon Willison, Import AI, Latent Space, The Verge |
 | People beat | HN personnel headlines, Techmeme personnel headlines, Exa people-move search |
+| Saved | Tweets you bookmark (bookmarklet, shortcut, or native X bookmarks), plus every outbound link and image on them |
 
 **On the X tier:** no single path is load-bearing. Mirror instances die constantly and Exa needs a key; when those go dark, Techmeme and the newsletters still carry the conversation secondhand with a few hours' lag. Every source reports its own status, so degradation is visible on the page rather than silent.
+
+**Saving a tweet:** open `/save`, generate a bookmarklet, and click it on a tweet. Trendwire fetches the post (via FxTwitter, no X API key required), stores the text, every outbound link, and every image, and gives those items guaranteed seats in the next issue. Native X bookmarks can feed the same path if you set `X_BOOKMARKS_TOKEN` and `X_USER_ID`.
 
 ---
 
@@ -100,11 +103,12 @@ DATABASE_URL="pglite://./.pglite" npm run build && DATABASE_URL="pglite://./.pgl
 npm test
 ```
 
-Three suites, no network and no API keys required:
+Four suites, no network and no API keys required:
 
 - **`test-lock.ts`** — the lease lock: contention (exactly one of four concurrent acquires wins), non-holders can't renew or release, expired leases are stealable (the crash-recovery path), and the lease is freed even when the body throws.
 - **`test-resume.ts`** — resumability: drives the pipeline with a 1ms budget so it's forced to stop repeatedly, then asserts every source was ingested **exactly once** across resumes, synthesis ran once rather than per pass, and a tick after publication is a no-op.
 - **`test-synthesis.ts`** — the model path against a stub provider: prompt assembly, fenced-JSON recovery, item-index → row-id mapping, invalid enum coercion, out-of-range indexes, and fallback when no key is set.
+- **`test-bookmarks.ts`** — tweet URL parsing, unpacking links and images from FxTwitter/vxTwitter payloads, ingest item shape, and corpus seats for saved tweets.
 
 ---
 
@@ -117,6 +121,8 @@ Three suites, no network and no API keys required:
 | `/archive` | Every issue |
 | `/api/digest/latest`, `/api/digest/:date` | JSON |
 | `/feed.xml` | RSS |
+| `/save` | Bookmarklet to save a tweet (links + images) into the next issue |
+| `/api/bookmark` | Capture a tweet URL (auth required) |
 | `/api/status` | Operational health; 503 when degraded |
 | `/api/cron/digest` | Daily pipeline entry point (auth required) |
 | `/api/tick` | Idempotent resume; `?date=` for backfills (auth required) |
@@ -131,7 +137,7 @@ Being straight about the edges rather than discovering them in production:
 - **X mirror instances are unreliable by nature.** The adapter races a list and skips when all are down. This is expected, not a bug — it's why the X tier has three independent paths.
 - **arXiv doesn't publish on weekends.** That source uses a 96-hour lookback instead of 24 so Saturday and Sunday issues aren't empty; dedup absorbs the overlap.
 - **The wire fallback is deliberately not editorial.** Without an LLM key, or when the call fails, the issue publishes as a ranked intake list labeled "wire edition" — not heuristic term clusters pretending to be themes.
-- **One LLM call per day** caps cost but also caps nuance; the corpus is trimmed to the top 60 deduped items, with the people tier guaranteed representation so a busy AI news day can't crowd it out.
+- **One LLM call per day** caps cost but also caps nuance; the corpus is trimmed to the top 60 deduped items, with the people beat and saved tweets guaranteed representation so a busy AI news day can't crowd them out.
 - **No email delivery yet.** RSS is wired; adding Resend on publish is a small addition to the synthesis step.
 - **Neon Free suspends compute after 5 minutes idle** and can't be configured otherwise on that plan. First request to a cold site pays a reactivation latency; it is not an error. Page caching keeps most visits off the database.
 - **Synthesis corpus is capped at 60 items** because a 120-item prompt did not return within 10 minutes against a live model, which on Vercel means the run is killed. Raise `SYNTH_MAX_CORPUS` only alongside `LLM_TIMEOUT_MS`, and measure.

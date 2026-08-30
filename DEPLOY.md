@@ -88,6 +88,8 @@ Vercel dashboard → **Settings → Environment Variables**. Set for **Productio
 | `LLM_PROVIDER` | optional | Pin a provider or chain, e.g. `gemini` or `gemini,openrouter`. |
 | `NEXT_PUBLIC_SITE_URL` | recommended | Your final URL, e.g. `https://trendwire.vercel.app`. Used for RSS links and OpenRouter's HTTP-Referer. |
 | `EXA_API_KEY` | optional | Enables X-scoped semantic search and the Exa people pass. Without it those two sources report `skipped`. |
+| `BOOKMARK_SECRET` | optional | Auth for `/api/bookmark` and the `/save` bookmarklet. Falls back to `CRON_SECRET`. Prefer a separate value so a leaked bookmarklet cannot fire the pipeline. |
+| `X_BOOKMARKS_TOKEN` / `X_USER_ID` | optional | Pull tweets you bookmark inside X. Token needs `bookmark.read`. |
 | `GEMINI_MODEL` | optional | Defaults to `gemini-2.5-pro`. |
 | `OPENROUTER_MODEL` | optional | Defaults to `google/gemini-2.5-pro`. |
 | `ANTHROPIC_MODEL` | optional | Defaults to `claude-sonnet-4-5`. Some gateways require a dated id like `claude-sonnet-4-5-20250929`. |
@@ -129,7 +131,7 @@ Expect something like:
   "ok": true,
   "date": "2026-08-18",
   "outcome": "synthesized",
-  "sources": "17/17",
+  "sources": "18/18",
   "themes": 7,
   "people": 0,
   "items": 233,

@@ -26,7 +26,7 @@ export const sources = pgTable(
     name: text("name").notNull(),
     /** hackernews | lobsters | github | reddit | arxiv | rss | techmeme | exa_x */
     kind: text("kind").notNull(),
-    /** Which discourse tier this belongs to: core | x_adjacent | people */
+    /** Which discourse tier this belongs to: core | x_adjacent | people | saved */
     tier: text("tier").notNull().default("core"),
     url: text("url"),
     config: jsonb("config").$type<Record<string, unknown>>(),
@@ -238,6 +238,33 @@ export const runSources = pgTable(
   (t) => [index("run_sources_run_idx").on(t.runId)],
 );
 
+/**
+ * Tweets the reader saved (bookmarklet or native X bookmarks). Filtered by
+ * capturedAt, not tweet age — an old post bookmarked today belongs in today's
+ * issue. Links and images are unpacked into raw_items by the bookmarks source.
+ */
+export const bookmarks = pgTable(
+  "bookmarks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tweetId: text("tweet_id").notNull(),
+    tweetUrl: text("tweet_url").notNull(),
+    author: text("author"),
+    text: text("text"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    capturedAt: timestamp("captured_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    links: jsonb("links").$type<string[]>().notNull().default([]),
+    images: jsonb("images").$type<string[]>().notNull().default([]),
+    raw: jsonb("raw").$type<Record<string, unknown>>(),
+  },
+  (t) => [
+    uniqueIndex("bookmarks_tweet_id_idx").on(t.tweetId),
+    index("bookmarks_captured_idx").on(t.capturedAt),
+  ],
+);
+
 // ---- Relations --------------------------------------------------------------
 
 export const sourcesRelations = relations(sources, ({ many }) => ({
@@ -308,3 +335,5 @@ export type Digest = typeof digests.$inferSelect;
 export type Theme = typeof themes.$inferSelect;
 export type PeopleMove = typeof peopleMoves.$inferSelect;
 export type Run = typeof runs.$inferSelect;
+export type Bookmark = typeof bookmarks.$inferSelect;
+export type NewBookmark = typeof bookmarks.$inferInsert;

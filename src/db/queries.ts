@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, gte, inArray, lt } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, lt, lte } from "drizzle-orm";
 import { getDb } from "@/db";
 import { titleSimilarity } from "@/lib/canonical";
 import {
@@ -7,6 +7,7 @@ import {
   type ThemeName,
 } from "@/lib/continuity";
 import {
+  bookmarks,
   digests,
   peopleMoves,
   rawItems,
@@ -25,6 +26,7 @@ export type DigestItemView = {
   sourceName: string;
   score: number | null;
   commentCount: number | null;
+  imageUrl: string | null;
 };
 
 export type ThemeView = {
@@ -63,6 +65,14 @@ export type DigestView = {
     confidence: string;
     note: string | null;
     evidenceUrl: string | null;
+  }>;
+  bookmarks: Array<{
+    tweetId: string;
+    tweetUrl: string;
+    author: string | null;
+    text: string | null;
+    links: string[];
+    images: string[];
   }>;
   sourceHealth: Array<{
     slug: string;
@@ -220,6 +230,7 @@ export async function getDigest(dateKey: string): Promise<DigestView | null> {
           score: rawItems.score,
           commentCount: rawItems.commentCount,
           sourceName: sources.name,
+          raw: rawItems.raw,
         })
         .from(themeItems)
         .innerJoin(rawItems, eq(themeItems.rawItemId, rawItems.id))
@@ -239,6 +250,7 @@ export async function getDigest(dateKey: string): Promise<DigestView | null> {
       sourceName: l.sourceName,
       score: l.score,
       commentCount: l.commentCount,
+      imageUrl: imageFromRaw(l.raw),
     });
     byTheme.set(l.themeId, list);
   }
@@ -248,6 +260,20 @@ export async function getDigest(dateKey: string): Promise<DigestView | null> {
     .from(peopleMoves)
     .where(eq(peopleMoves.digestId, digest.id))
     .orderBy(peopleMoves.rank);
+
+  const slack = 3_600_000;
+  const bookmarkRows = await db
+    .select()
+    .from(bookmarks)
+    .where(
+      and(
+        gte(
+          bookmarks.capturedAt,
+          new Date(digest.windowStart.getTime() - slack),
+        ),
+        lte(bookmarks.capturedAt, new Date(digest.windowEnd.getTime() + slack)),
+      ),
+    );
 
   const runRows = await db
     .select({ id: runs.id })
@@ -337,8 +363,26 @@ export async function getDigest(dateKey: string): Promise<DigestView | null> {
       note: p.note,
       evidenceUrl: p.evidenceUrl,
     })),
+    bookmarks: bookmarkRows.map((b) => ({
+      tweetId: b.tweetId,
+      tweetUrl: b.tweetUrl,
+      author: b.author,
+      text: b.text,
+      links: b.links ?? [],
+      images: b.images ?? [],
+    })),
     sourceHealth: [...healthBySlug.values()].sort((a, b) =>
       a.slug.localeCompare(b.slug),
     ),
   };
+}
+
+function imageFromRaw(raw: Record<string, unknown> | null): string | null {
+  if (!raw) return null;
+  if (typeof raw.imageUrl === "string" && raw.imageUrl.startsWith("http")) {
+    return raw.imageUrl;
+  }
+  const images = raw.images;
+  if (Array.isArray(images) && typeof images[0] === "string") return images[0];
+  return null;
 }

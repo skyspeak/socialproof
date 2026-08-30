@@ -18,7 +18,7 @@ export type SourceDef = {
   slug: string;
   name: string;
   kind: string;
-  tier: "core" | "x_adjacent" | "people";
+  tier: "core" | "x_adjacent" | "people" | "saved";
   url?: string;
   config?: Record<string, unknown>;
   /** Adapters receive the window and return normalized items. */

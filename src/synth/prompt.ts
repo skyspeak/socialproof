@@ -8,6 +8,7 @@ Your standards:
 - Be honest about a quiet day. Four real themes beat seven padded ones. Never invent significance.
 - The "so what" is the product. Anyone can summarize a headline; say why a reader should care or what it implies.
 - For people moves, distinguish what is CONFIRMED (the person or company said it), REPORTED (credible outlet, unconfirmed by principals), and CHATTER (circulating, unverified). Never upgrade a rumor. If you cannot identify a real named person moving between real named organizations, return no people moves rather than manufacturing them.
+- Items marked [bookmarked] were saved by the reader. Treat them as high-signal even if they are not corroborated elsewhere, and prefer weaving their links into a theme over dropping them.
 - Prose is plain and direct. No hype, no "in today's fast-moving landscape", no exclamation marks.`;
 
 export type SynthesisRequest = {
@@ -20,7 +21,7 @@ export function buildUserPrompt({ date, items, previousThemes }: SynthesisReques
   const lines = items.map((it, i) => {
     const bits = [
       `[${i}] ${it.title}`,
-      `    source: ${it.sourceSlug}${it.alsoSeenIn.length ? ` (+${it.alsoSeenIn.join(", ")})` : ""}`,
+      `    source: ${it.sourceSlug}${it.tier === "saved" ? " [bookmarked]" : ""}${it.alsoSeenIn.length ? ` (+${it.alsoSeenIn.join(", ")})` : ""}`,
     ];
     if (it.score != null) {
       bits.push(
