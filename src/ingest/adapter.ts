@@ -51,12 +51,43 @@ export class SourceError extends Error {
 const USER_AGENT =
   "trendwire/0.1 (+daily tech digest; contact via site) node-fetch";
 
+/** Per-source ceiling so one hung feed cannot eat the whole function budget. */
+export const SOURCE_TIMEOUT_MS = Number(process.env.SOURCE_TIMEOUT_MS ?? 28_000);
+
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms}ms`)),
+      ms,
+    );
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function retryDelayMs(res: Response | null, attempt: number): number {
+  const raw = res?.headers.get("retry-after");
+  const fromHeader = raw ? Number(raw) : NaN;
+  if (Number.isFinite(fromHeader) && fromHeader >= 0) {
+    return Math.min(5_000, fromHeader * 1000);
+  }
+  return 500 * 2 ** attempt;
+}
+
 /** Fetch with a timeout, one retry on transient failure, and a sane UA. */
 export async function fetchWithRetry(
   url: string,
   init: FetchInit = {},
 ): Promise<Response> {
-  const { timeoutMs = 15_000, retries = 1, ...rest } = init;
+  const { timeoutMs = 12_000, retries = 1, ...rest } = init;
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -68,7 +99,8 @@ export async function fetchWithRetry(
         signal: controller.signal,
         headers: {
           "user-agent": USER_AGENT,
-          accept: "application/json, text/html, application/xml;q=0.9, */*;q=0.8",
+          accept:
+            "application/json, application/atom+xml, application/rss+xml, application/xml;q=0.9, text/html;q=0.8, */*;q=0.7",
           ...(rest.headers ?? {}),
         },
       });
@@ -77,7 +109,7 @@ export async function fetchWithRetry(
       if (res.status >= 500 || res.status === 429) {
         lastError = new Error(`HTTP ${res.status}`);
         if (attempt < retries) {
-          await sleep(600 * (attempt + 1));
+          await sleep(retryDelayMs(res, attempt));
           continue;
         }
       }
@@ -86,7 +118,7 @@ export async function fetchWithRetry(
       clearTimeout(timer);
       lastError = err;
       if (attempt < retries) {
-        await sleep(600 * (attempt + 1));
+        await sleep(retryDelayMs(null, attempt));
         continue;
       }
     }

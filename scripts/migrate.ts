@@ -1,34 +1,51 @@
 /**
- * Apply migrations to a real Postgres (Neon, RDS, anything).
+ * Apply migrations to a real Postgres (Supabase, RDS, anything).
  *
  *   npm run db:migrate
  *
  * Runs the versioned .sql files in ./drizzle and records them in
  * drizzle.__drizzle_migrations, so it is safe to re-run and safe in CI.
  *
- * Prefers an unpooled connection, because DDL must not go through Neon's pooled
- * endpoint: it's PgBouncer in transaction mode, which explicitly does not
- * support SET/RESET, LOAD, SQL-level PREPARE, or session-level advisory locks —
- * and Neon's docs list "schema migrations" under use-a-direct-connection.
+ * Prefers a direct (or session-mode) connection, because DDL must not go
+ * through a transaction-mode pooler. Supabase's runtime URL is Supavisor on
+ * port 6543; that mode does not support SET/RESET, SQL-level PREPARE, or
+ * session-level advisory locks.
  *
- * `DATABASE_URL_UNPOOLED` is the name Neon's Vercel integration sets
- * automatically, so it's checked first; DIRECT_DATABASE_URL is the manual
- * equivalent for non-Vercel setups.
+ * Resolution order:
+ *   POSTGRES_URL_NON_POOLING  (Supabase's Vercel integration)
+ *   DATABASE_URL_UNPOOLED     (legacy name, still honored)
+ *   DIRECT_DATABASE_URL       (manual / .env.example)
+ *   DIRECT_URL                (Prisma / Supabase CLI convention)
+ *   DATABASE_URL / POSTGRES_URL  (last resort — warned if it looks pooled)
  */
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 
+function isTransactionPooler(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const port = parsed.port || "5432";
+    if (port === "6543") return true;
+    return parsed.hostname.includes("-pooler");
+  } catch {
+    return url.includes(":6543") || url.includes("-pooler");
+  }
+}
+
 async function main() {
   const direct =
-    process.env.DATABASE_URL_UNPOOLED ?? process.env.DIRECT_DATABASE_URL;
-  const pooled = process.env.DATABASE_URL;
+    process.env.POSTGRES_URL_NON_POOLING ??
+    process.env.DATABASE_URL_UNPOOLED ??
+    process.env.DIRECT_DATABASE_URL ??
+    process.env.DIRECT_URL;
+  const pooled = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
   const url = direct ?? pooled;
 
   if (!url) {
     console.error(
-      "✗ No connection string. Set DATABASE_URL_UNPOOLED (set for you by the\n" +
-        "  Neon Vercel integration), DIRECT_DATABASE_URL, or DATABASE_URL.",
+      "✗ No connection string. Set DIRECT_DATABASE_URL (or the integration\n" +
+        "  var POSTGRES_URL_NON_POOLING), then DATABASE_URL as a fallback.",
     );
     process.exit(1);
   }
@@ -41,10 +58,11 @@ async function main() {
     process.exit(1);
   }
 
-  if (!direct && pooled?.includes("-pooler")) {
+  if (!direct && isTransactionPooler(url)) {
     console.warn(
-      "⚠ DATABASE_URL points at Neon's pooled endpoint (-pooler) and no\n" +
-        "  unpooled string is set. Migrations should use a direct connection.\n" +
+      "⚠ DATABASE_URL looks like a transaction-mode pooler (port 6543, or a\n" +
+        "  *-pooler hostname) and no direct string is set. Migrations should\n" +
+        "  use db.<project>.supabase.co:5432, or the Session pooler on 5432.\n" +
         "  Continuing, but some statements may fail under transaction pooling.\n",
     );
   }

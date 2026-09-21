@@ -200,6 +200,64 @@ export async function getAdjacentPublished(dateKey: string): Promise<{
   return { prevDate: prev?.date ?? null, nextDate: next?.date ?? null };
 }
 
+/**
+ * The day's whole intake, not just the items an editor picked up.
+ *
+ * A digest's themes reference a few dozen items; the run ingested several
+ * hundred. For a reader that trim is the product. For a game mining the day
+ * for vocabulary it is a loss — and worst on a wire edition, where the issue
+ * is only eight single-item entries, so the corpus collapses to eight
+ * headlines on exactly the days no editor narrowed it.
+ *
+ * Ordered by engagement so a caller taking a slice takes the loudest of it.
+ */
+export async function getIntakeItems(
+  dateKey: string,
+  limit = 400,
+): Promise<DigestItemView[]> {
+  const db = await getDb();
+
+  const [digest] = await db
+    .select({ start: digests.windowStart, end: digests.windowEnd })
+    .from(digests)
+    .where(eq(digests.digestDate, dateKey))
+    .limit(1);
+  if (!digest) return [];
+
+  const rows = await db
+    .select({
+      id: rawItems.id,
+      title: rawItems.title,
+      url: rawItems.url,
+      discussionUrl: rawItems.discussionUrl,
+      score: rawItems.score,
+      commentCount: rawItems.commentCount,
+      sourceName: sources.name,
+      raw: rawItems.raw,
+    })
+    .from(rawItems)
+    .innerJoin(sources, eq(rawItems.sourceId, sources.id))
+    .where(
+      and(
+        gte(rawItems.fetchedAt, digest.start),
+        lte(rawItems.fetchedAt, new Date(digest.end.getTime() + 3_600_000)),
+      ),
+    )
+    .orderBy(desc(rawItems.score))
+    .limit(limit);
+
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    url: r.url,
+    discussionUrl: r.discussionUrl,
+    sourceName: r.sourceName,
+    score: r.score,
+    commentCount: r.commentCount,
+    imageUrl: imageFromRaw(r.raw),
+  }));
+}
+
 export async function getDigest(dateKey: string): Promise<DigestView | null> {
   const db = await getDb();
 

@@ -1,4 +1,4 @@
-import { fetchJson, SkipSource, type IngestItem, type SourceDef } from "../adapter";
+import { fetchJson, fetchWithRetry, SkipSource, type IngestItem, type SourceDef } from "../adapter";
 
 type RedditListing = {
   data: {
@@ -27,13 +27,58 @@ const SUBREDDITS = [
   "programming",
 ];
 
+type RedditToken = { value: string; exp: number };
+let redditToken: RedditToken | null = null;
+
+async function redditAccess(): Promise<{
+  origin: string;
+  headers: Record<string, string>;
+}> {
+  const id = process.env.REDDIT_CLIENT_ID;
+  const secret = process.env.REDDIT_CLIENT_SECRET;
+  if (!id || !secret) {
+    return { origin: "https://www.reddit.com", headers: {} };
+  }
+
+  if (!redditToken || redditToken.exp < Date.now() + 30_000) {
+    const basic = Buffer.from(`${id}:${secret}`).toString("base64");
+    const res = await fetchWithRetry("https://www.reddit.com/api/v1/access_token", {
+      method: "POST",
+      headers: {
+        authorization: `Basic ${basic}`,
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: "grant_type=client_credentials",
+      timeoutMs: 10_000,
+    });
+    if (!res.ok) {
+      throw new SkipSource(`Reddit OAuth failed (HTTP ${res.status})`);
+    }
+    const data = (await res.json()) as { access_token?: string; expires_in?: number };
+    if (!data.access_token) {
+      throw new SkipSource("Reddit OAuth returned no access_token");
+    }
+    redditToken = {
+      value: data.access_token,
+      exp: Date.now() + (data.expires_in ?? 3600) * 1000,
+    };
+  }
+
+  return {
+    origin: "https://oauth.reddit.com",
+    headers: { authorization: `Bearer ${redditToken.value}` },
+  };
+}
+
 /**
  * Reddit stands in for a chunk of the X conversation — the same arguments,
  * minus the login wall. r/LocalLLaMA in particular front-runs open-model
  * discourse by a day or two.
  *
- * Uses the public .json endpoints (no OAuth). Reddit rate-limits aggressively
- * from datacenter IPs, so failures here are expected and non-fatal.
+ * Uses the public `.json` endpoints unless `REDDIT_CLIENT_ID` and
+ * `REDDIT_CLIENT_SECRET` are set, in which case it uses application-only
+ * OAuth against `oauth.reddit.com`. Unauthenticated reads 403 from most
+ * datacenter IPs, including Vercel.
  */
 export const reddit: SourceDef = {
   slug: "reddit",
@@ -44,11 +89,13 @@ export const reddit: SourceDef = {
   async fetch(window) {
     const items: IngestItem[] = [];
     let failures = 0;
+    const access = await redditAccess();
 
     for (const sub of SUBREDDITS) {
       try {
         const data = await fetchJson<RedditListing>(
-          `https://www.reddit.com/r/${sub}/top.json?t=day&limit=25`,
+          `${access.origin}/r/${sub}/top.json?t=day&limit=25`,
+          { headers: access.headers, timeoutMs: 12_000 },
         );
         for (const { data: p } of data.data.children) {
           if (p.stickied) continue;
@@ -82,7 +129,9 @@ export const reddit: SourceDef = {
     // them so the run log stays trustworthy.
     if (failures === SUBREDDITS.length) {
       throw new SkipSource(
-        "all subreddits unreachable (Reddit commonly returns 403 to datacenter IPs; needs an OAuth app to be reliable)",
+        access.origin.includes("oauth")
+          ? "all subreddits unreachable despite Reddit OAuth"
+          : "all subreddits unreachable (Reddit commonly returns 403 to datacenter IPs; set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET)",
       );
     }
 

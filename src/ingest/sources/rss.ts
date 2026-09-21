@@ -161,7 +161,46 @@ export const techmemePeople: SourceDef = {
   },
 };
 
-/** Recap blogs and newsletters that summarize X discourse secondhand. */
+/** Trade-press rivers. Window-filtered; tight limits so they cannot swamp HN. */
+export const tradePress: SourceDef[] = [
+  rssSource({
+    slug: "arstechnica",
+    name: "Ars Technica",
+    url: "https://feeds.arstechnica.com/arstechnica/index",
+    tier: "core",
+    limit: 25,
+  }),
+  rssSource({
+    slug: "404media",
+    name: "404 Media",
+    url: "https://www.404media.co/rss/",
+    tier: "core",
+    limit: 15,
+  }),
+  rssSource({
+    slug: "techcrunch",
+    name: "TechCrunch",
+    url: "https://techcrunch.com/feed/",
+    tier: "core",
+    limit: 20,
+  }),
+  rssSource({
+    slug: "theregister",
+    name: "The Register",
+    url: "https://www.theregister.com/headlines.atom",
+    tier: "core",
+    limit: 20,
+  }),
+  rssSource({
+    slug: "mit-tr",
+    name: "MIT Technology Review",
+    url: "https://www.technologyreview.com/feed/",
+    tier: "core",
+    limit: 15,
+  }),
+];
+
+/** Recap blogs and newsletters that summarize the industry argument secondhand. */
 export const newsletters: SourceDef[] = [
   rssSource({
     slug: "simonwillison",
@@ -185,17 +224,38 @@ export const newsletters: SourceDef[] = [
     limit: 10,
   }),
   rssSource({
+    slug: "platformer",
+    name: "Platformer",
+    url: "https://www.platformer.news/feed",
+    tier: "x_adjacent",
+    limit: 10,
+  }),
+  rssSource({
+    slug: "interconnects",
+    name: "Interconnects",
+    url: "https://www.interconnects.ai/feed",
+    tier: "x_adjacent",
+    limit: 10,
+  }),
+  rssSource({
+    slug: "huggingface-blog",
+    name: "Hugging Face Blog",
+    url: "https://huggingface.co/blog/feed.xml",
+    tier: "x_adjacent",
+    limit: 10,
+  }),
+  rssSource({
+    slug: "openai-news",
+    name: "OpenAI News",
+    url: "https://openai.com/news/rss.xml",
+    tier: "x_adjacent",
+    limit: 12,
+  }),
+  rssSource({
     slug: "theverge",
     name: "The Verge",
     url: "https://www.theverge.com/rss/index.xml",
     tier: "x_adjacent",
-    limit: 30,
-  }),
-  rssSource({
-    slug: "arstechnica",
-    name: "Ars Technica",
-    url: "https://feeds.arstechnica.com/arstechnica/index",
-    tier: "core",
     limit: 25,
   }),
 ];

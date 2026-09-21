@@ -2,7 +2,7 @@
 
 Target: a daily digest that runs unattended in the cloud, on free tiers, with no laptop involved.
 
-Total time: ~15 minutes. You need a GitHub account, a Vercel account, and a Neon account.
+Total time: ~15 minutes. You need a GitHub account, a Vercel account, and a Supabase account.
 
 ---
 
@@ -39,29 +39,27 @@ Both routes call the same `advance()`. It reads what's already done from the run
 
 ---
 
-## Step 1 — Database (Neon)
+## Step 1 — Database (Supabase)
 
-> **Note:** Vercel Postgres no longer exists as a separate product. Existing databases were moved to Neon in December 2024, and new Postgres on Vercel comes from the Marketplace. Neon is the path below.
+This app talks to Postgres over TCP with Drizzle. It does **not** use Supabase Auth, Realtime, Storage, or the JS client — only the database. You still need two connection strings, and they are not interchangeable — see the box below.
 
-**Option A — via the Vercel Marketplace (recommended).** Do this after Step 2 if you prefer; it wires the env vars for you:
+**Option A — create the project on Supabase (recommended).** Do this before or after Step 2.
 
-1. Vercel dashboard → your project → **Storage** → **Create Database** → **Neon**
-2. Pick the Free plan and a region near your users
+1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard) (Free is enough). Pick a region near your users.
+2. **Connect** → **Connection string** → **URI**. Copy **both**:
+   - **Transaction pooler** (host `*.pooler.supabase.com`, port **6543**) → `DATABASE_URL`
+   - **Direct** (`db.<project-ref>.supabase.co`, port **5432**) → `DIRECT_DATABASE_URL`
+3. Use the URI method, not the Prisma connection string (`?pgbouncer=true`). postgres.js does not want that flag.
 
-The integration sets `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct) automatically, plus `PGHOST`/`PGUSER`/`PGDATABASE`/`PGPASSWORD`. You don't need to copy anything by hand.
+If migrate fails with `ENETUNREACH` / IPv6, the direct host is IPv6-only on some projects. Use the **Session** pooler instead (same `pooler.supabase.com` host, port **5432**) as `DIRECT_DATABASE_URL`. Do not migrate through port 6543.
 
-**Option B — Neon directly.** Create a project at [neon.tech](https://neon.tech), then from the dashboard copy **both** connection strings:
-
-- The **pooled** one (hostname contains `-pooler`) → this becomes `DATABASE_URL`
-- The **direct** one (same host, no `-pooler`) → this becomes `DIRECT_DATABASE_URL`
-
-You need both, and they are not interchangeable — see the box below.
+**Option B — via the Vercel Marketplace.** After Step 2: Vercel → **Storage** → **Create Database** → **Supabase**. The integration sets `POSTGRES_URL` (pooled) and `POSTGRES_URL_NON_POOLING` (direct). The app and `npm run db:migrate` honor those names. You can also copy them to `DATABASE_URL` / `DIRECT_DATABASE_URL` if you prefer the names in `.env.example`.
 
 > ### Why two connection strings
-> Neon's pooled endpoint is PgBouncer in **transaction mode**. It does not support `SET`/`RESET`, `LISTEN`/`NOTIFY`, SQL-level `PREPARE`, temporary tables, or **session-level advisory locks**. Neon's docs list "schema migrations" under *use a direct connection*.
+> Supabase's serverless URL is **Supavisor in transaction mode** (port 6543). It does not support `SET`/`RESET`, `LISTEN`/`NOTIFY`, SQL-level `PREPARE`, temporary tables, or **session-level advisory locks**.
 >
 > Two consequences in this codebase:
-> - Migrations run against the **direct** string (`scripts/migrate.ts` enforces this and warns if you point it at a pooler).
+> - Migrations run against the **direct** string (`scripts/migrate.ts` prefers `POSTGRES_URL_NON_POOLING` / `DIRECT_DATABASE_URL` and warns if you point it at port 6543).
 > - The run lock is a **lease row**, not `pg_advisory_lock`. A session lock taken through a transaction-mode pooler can outlive the logical connection that took it, which is a deadlock waiting to happen. The lease also self-heals: if a function is killed mid-run, the lease expires and the next tick continues.
 
 ## Step 2 — Deploy the app
@@ -81,13 +79,15 @@ Vercel dashboard → **Settings → Environment Variables**. Set for **Productio
 
 | Variable | Required | Value |
 |---|---|---|
-| `DATABASE_URL` | yes | Pooled Neon string. Set for you by the Marketplace integration. |
-| `DIRECT_DATABASE_URL` | only with Option B | Direct Neon string. With the integration, `DATABASE_URL_UNPOOLED` is already set and used automatically. |
+| `DATABASE_URL` | yes | Transaction pooler URI (port **6543**). Marketplace equivalent: `POSTGRES_URL`. |
+| `DIRECT_DATABASE_URL` | for migrate | Direct URI (port **5432**). Marketplace equivalent: `POSTGRES_URL_NON_POOLING`. |
 | `CRON_SECRET` | yes | `openssl rand -hex 32`. Vercel sends it as `Authorization: Bearer …` on cron calls. |
 | `GEMINI_API_KEY` or `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` | strongly recommended | Tried in that order. Without any, the digest publishes heuristic term clusters. |
 | `LLM_PROVIDER` | optional | Pin a provider or chain, e.g. `gemini` or `gemini,openrouter`. |
 | `NEXT_PUBLIC_SITE_URL` | recommended | Your final URL, e.g. `https://trendwire.vercel.app`. Used for RSS links and OpenRouter's HTTP-Referer. |
 | `EXA_API_KEY` | optional | Enables X-scoped semantic search and the Exa people pass. Without it those two sources report `skipped`. |
+| `GITHUB_TOKEN` | recommended | Public-repo PAT. Without it GitHub search often 403s from Vercel and reports `skipped`. |
+| `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | recommended | Application-only OAuth. Without it Reddit reports `skipped` from datacenter IPs. |
 | `BOOKMARK_SECRET` | optional | Auth for `/api/bookmark` and the `/save` bookmarklet. Falls back to `CRON_SECRET`. Prefer a separate value so a leaked bookmarklet cannot fire the pipeline. |
 | `X_BOOKMARKS_TOKEN` / `X_USER_ID` | optional | Pull tweets you bookmark inside X. Token needs `bookmark.read`. |
 | `GEMINI_MODEL` | optional | Defaults to `gemini-2.5-pro`. |
@@ -100,7 +100,7 @@ Vercel dashboard → **Settings → Environment Variables**. Set for **Productio
 
 ## Step 4 — Create the schema
 
-From your machine, with the **direct** connection string:
+From your machine, with the **direct** connection string (port 5432):
 
 ```bash
 cp .env.example .env
@@ -131,7 +131,7 @@ Expect something like:
   "ok": true,
   "date": "2026-08-18",
   "outcome": "synthesized",
-  "sources": "18/18",
+  "sources": "28/28",
   "themes": 7,
   "people": 0,
   "items": 233,
@@ -184,11 +184,10 @@ On a Vercel **Pro** plan you can delete the workflow and schedule the cron every
 | | Free allowance | This service uses |
 |---|---|---|
 | Vercel functions | Generous on Hobby | ~1 cron run + ~96 tick no-ops/day |
-| Neon compute | 100 CU-hours/project/month | A few minutes of active compute per day |
-| Neon storage | 0.5 GB/project | Grows slowly; `raw_items` dominates |
+| Supabase database | 500 MB on Free | Grows slowly; `raw_items` dominates |
 | LLM | — | One call/day (~20k input tokens) |
 
-Neon's free tier **suspends compute after 5 minutes of inactivity** and this cannot be disabled on Free. That's a first-query latency cost on a cold site, not an error — the compute resumes automatically. Page caching (5 min on `/`, 1 hour on dated issues) keeps most visits off the database entirely, which matters because CU-hours are the metered resource, not requests.
+Supabase Free does not sleep after five idle minutes the way some serverless Postgres plans do. Unused **projects** can still pause after a week of inactivity; a daily cron (and the optional Actions tick) keeps this one awake. Page caching (5 min on `/`, 1 hour on dated issues) keeps most visits off the database.
 
 **Storage growth.** `raw_items` is the only table that grows meaningfully. If you approach 0.5 GB, prune old rows — exceeding the cap makes writes fail until you free space:
 
@@ -208,9 +207,11 @@ DELETE FROM raw_items WHERE fetched_at < now() - interval '90 days';
 | Deploy fails on the cron expression | Hobby rejects sub-daily schedules | Keep `0 13 * * *`; use the GitHub Actions tick for frequency |
 | `outcome: "out_of_budget"` repeatedly | Sources are slow | Each tick still makes forward progress; check `/api/status` `pending` shrinking |
 | `skipped: true, reason: "locked"` | Another run holds the lease | Expected under overlap. Leases expire on their own |
-| Migration errors mentioning `SET` or prepared statements | Migrating through the pooler | Use the direct/unpooled string |
-| `reddit` always `skipped` | Reddit 403s datacenter IPs, including Vercel's | Expected. Needs a Reddit OAuth app to fix properly |
-| `exa-x` / `exa-people` `skipped` | No `EXA_API_KEY` | Optional; Techmeme and newsletters still carry the X tier |
+| Migration errors mentioning `SET` or prepared statements | Migrating through port 6543 | Use the direct URI, or Session pooler on 5432 |
+| `ENETUNREACH` during migrate | Direct host is IPv6-only | Session pooler (`pooler.supabase.com:5432`) as `DIRECT_DATABASE_URL` |
+| `reddit` always `skipped` | Reddit 403s datacenter IPs, including Vercel's | Set `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` |
+| `github-trending` skipped | Unauthenticated search 403 from Vercel | Set `GITHUB_TOKEN` |
+| `exa-x` / `exa-people` `skipped` | No `EXA_API_KEY` | Optional; Techmeme, Bluesky, and newsletters still carry the X tier |
 | Digest published but themes look like `word / word / word` | No LLM key, or the call failed | Check `llmConfigured` in `/api/status`; the intro states the failure reason |
 | Site shows "database isn't reachable" | Schema not applied | Run `npm run db:migrate` |
 

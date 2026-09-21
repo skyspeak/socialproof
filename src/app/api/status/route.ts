@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { digests, runSources, runs } from "@/db/schema";
 import { ALL_SOURCES } from "@/ingest/registry";
@@ -49,19 +49,34 @@ export async function GET() {
       .where(eq(runs.digestId, latest.id))
       .orderBy(desc(runs.startedAt));
 
-    const health = runRows.length
+    const sourceRows = runRows.length
       ? await db
           .select({
             slug: runSources.sourceSlug,
             status: runSources.status,
             itemsFound: runSources.itemsFound,
             error: runSources.error,
+            startedAt: runs.startedAt,
           })
           .from(runSources)
-          .where(eq(runSources.runId, runRows[0].id))
+          .innerJoin(runs, eq(runSources.runId, runs.id))
+          .where(
+            inArray(
+              runSources.runId,
+              runRows.map((r) => r.id),
+            ),
+          )
       : [];
 
-    const attempted = new Set(health.map((h) => h.slug));
+    const latestBySlug = new Map<(typeof sourceRows)[number]["slug"], (typeof sourceRows)[number]>();
+    const newestFirst = [...sourceRows].sort(
+      (a, b) => b.startedAt.getTime() - a.startedAt.getTime(),
+    );
+    for (const row of newestFirst) {
+      if (!latestBySlug.has(row.slug)) latestBySlug.set(row.slug, row);
+    }
+    const health = [...latestBySlug.values()];
+    const attempted = new Set(sourceRows.map((h) => h.slug));
     const lock = await inspectLock("digest-pipeline");
 
     const failing = health.filter((h) => h.status === "failed");
@@ -82,7 +97,7 @@ export async function GET() {
         },
         progress: {
           sourcesRegistered: ALL_SOURCES.length,
-          sourcesAttemptedLastRun: attempted.size,
+          sourcesAttempted: attempted.size,
           pending: ALL_SOURCES.filter((s) => !attempted.has(s.slug)).map(
             (s) => s.slug,
           ),

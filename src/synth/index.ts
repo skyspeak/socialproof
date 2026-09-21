@@ -174,63 +174,65 @@ export async function persistSynthesis(
 ): Promise<void> {
   const db = await getDb();
 
-  await db.delete(themes).where(eq(themes.digestId, digestId));
-  await db.delete(peopleMoves).where(eq(peopleMoves.digestId, digestId));
+  await db.transaction(async (tx) => {
+    await tx.delete(themes).where(eq(themes.digestId, digestId));
+    await tx.delete(peopleMoves).where(eq(peopleMoves.digestId, digestId));
 
-  for (const t of output.themes) {
-    const [row] = await db
-      .insert(themes)
-      .values({
-        digestId,
-        name: t.name,
-        summary: t.summary,
-        soWhat: t.soWhat,
-        isNew: t.isNew,
-        rank: t.rank,
-      })
-      .returning({ id: themes.id });
+    for (const t of output.themes) {
+      const [row] = await tx
+        .insert(themes)
+        .values({
+          digestId,
+          name: t.name,
+          summary: t.summary,
+          soWhat: t.soWhat,
+          isNew: t.isNew,
+          rank: t.rank,
+        })
+        .returning({ id: themes.id });
 
-    if (t.itemIds.length) {
-      await db
-        .insert(themeItems)
-        .values(
-          t.itemIds.map((rawItemId, rank) => ({
-            themeId: row.id,
-            rawItemId,
-            rank,
-          })),
-        )
-        .onConflictDoNothing();
+      if (t.itemIds.length) {
+        await tx
+          .insert(themeItems)
+          .values(
+            t.itemIds.map((rawItemId, rank) => ({
+              themeId: row.id,
+              rawItemId,
+              rank,
+            })),
+          )
+          .onConflictDoNothing();
+      }
     }
-  }
 
-  if (output.peopleMoves.length) {
-    await db.insert(peopleMoves).values(
-      output.peopleMoves.map((m) => ({
-        digestId,
-        person: m.person,
-        fromOrg: m.fromOrg,
-        toOrg: m.toOrg,
-        role: m.role,
-        moveType: m.moveType,
-        confidence: m.confidence,
-        note: m.note,
-        evidenceUrl: m.evidenceUrl,
-        rawItemId: m.rawItemId,
-        rank: m.rank,
-      })),
-    );
-  }
+    if (output.peopleMoves.length) {
+      await tx.insert(peopleMoves).values(
+        output.peopleMoves.map((m) => ({
+          digestId,
+          person: m.person,
+          fromOrg: m.fromOrg,
+          toOrg: m.toOrg,
+          role: m.role,
+          moveType: m.moveType,
+          confidence: m.confidence,
+          note: m.note,
+          evidenceUrl: m.evidenceUrl,
+          rawItemId: m.rawItemId,
+          rank: m.rank,
+        })),
+      );
+    }
 
-  await db
-    .update(digests)
-    .set({
-      status: "published",
-      headline: output.headline,
-      intro: output.intro,
-      itemCount,
-      generatedAt: new Date(),
-      provider: output.provider,
-    })
-    .where(eq(digests.id, digestId));
+    await tx
+      .update(digests)
+      .set({
+        status: "published",
+        headline: output.headline,
+        intro: output.intro,
+        itemCount,
+        generatedAt: new Date(),
+        provider: output.provider,
+      })
+      .where(eq(digests.id, digestId));
+  });
 }

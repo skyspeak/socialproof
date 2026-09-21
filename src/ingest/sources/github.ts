@@ -1,4 +1,4 @@
-import { fetchJson, type IngestItem, type SourceDef } from "../adapter";
+import { fetchJson, SkipSource, type IngestItem, type SourceDef } from "../adapter";
 
 type SearchResponse = {
   items: Array<{
@@ -20,7 +20,8 @@ type SearchResponse = {
  * in the last ~2 weeks sorted by stars. That biases toward genuinely new
  * projects rather than perennial giants, which is what a daily digest wants.
  *
- * Unauthenticated search is limited to 10 req/min — fine for one call a day.
+ * Unauthenticated search is limited to 10 req/min. Set GITHUB_TOKEN (a
+ * fine-grained PAT with public_repo read is enough) so Vercel doesn't get 403s.
  */
 export const githubTrending: SourceDef = {
   slug: "github-trending",
@@ -40,12 +41,31 @@ export const githubTrending: SourceDef = {
       per_page: "25",
     });
 
-    const data = await fetchJson<SearchResponse>(
-      `https://api.github.com/search/repositories?${params}`,
-      { headers: { accept: "application/vnd.github+json" } },
-    );
+    const headers: Record<string, string> = {
+      accept: "application/vnd.github+json",
+    };
+    const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+    if (token) headers.authorization = `Bearer ${token}`;
 
-    return data.items.map<IngestItem>((r) => ({
+    let data: SearchResponse;
+    try {
+      data = await fetchJson<SearchResponse>(
+        `https://api.github.com/search/repositories?${params}`,
+        { headers, timeoutMs: 15_000 },
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/\b403\b/.test(msg) || /\b429\b/.test(msg)) {
+        throw new SkipSource(
+          token
+            ? `GitHub search rate-limited (${msg})`
+            : "GitHub search blocked unauthenticated; set GITHUB_TOKEN",
+        );
+      }
+      throw err;
+    }
+
+    return (data.items ?? []).map<IngestItem>((r) => ({
       externalId: String(r.id),
       title: `${r.full_name} — ${r.description ?? "no description"}`.slice(0, 300),
       url: r.html_url,

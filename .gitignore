@@ -8,3 +8,11 @@ node_modules
 next-env.d.ts
 .vercel
 .DS_Store
+
+# --- added by cleanup 2026-09-09 ---
+dist/
+build/
+.turbo/
+__pycache__/
+*.pyc
+.vite/

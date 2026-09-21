@@ -205,10 +205,11 @@ export const runs = pgTable(
  *
  * Vercel explicitly does not manage cron concurrency — if a run outlives its
  * interval, a second invocation can start on top of it. We can't use Postgres
- * session advisory locks here because Neon's pooled endpoint runs PgBouncer in
- * transaction mode, where a session-scoped lock can outlive the logical
- * connection that took it. A lease row with an expiry is safe under pooling,
- * survives a hard function kill (the lease simply expires), and is inspectable.
+ * session advisory locks here because the runtime URL is a transaction-mode
+ * pooler (Supabase Supavisor on port 6543), where a session-scoped lock can
+ * outlive the logical connection that took it. A lease row with an expiry is
+ * safe under pooling, survives a hard function kill (the lease simply expires),
+ * and is inspectable.
  */
 export const locks = pgTable("locks", {
   name: text("name").primaryKey(),

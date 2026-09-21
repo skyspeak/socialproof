@@ -3,7 +3,7 @@ import { getDb } from "@/db";
 import { rawItems, runs, runSources, sources, digests } from "@/db/schema";
 import { canonicalizeUrl, contentHash } from "@/lib/canonical";
 import { velocity, type Window } from "@/lib/window";
-import { SkipSource, type SourceDef } from "./adapter";
+import { SkipSource, SOURCE_TIMEOUT_MS, withTimeout, type SourceDef } from "./adapter";
 import { ALL_SOURCES } from "./registry";
 
 export type SourceOutcome = {
@@ -54,7 +54,11 @@ async function ingestSource(
   const db = await getDb();
 
   try {
-    const items = await def.fetch(window);
+    const items = await withTimeout(
+      def.fetch(window),
+      SOURCE_TIMEOUT_MS,
+      def.slug,
+    );
     let itemsNew = 0;
 
     for (const item of items) {
@@ -138,9 +142,19 @@ export async function ingestChunk(opts: {
   const slice = ALL_SOURCES.filter(
     (s) => requested.has(s.slug) && enabledSlugs.has(s.slug),
   );
-  // Sources disabled in the DB are reported back so the caller doesn't wait
-  // on them forever.
-  const skipped = opts.slugs.filter((s) => !slice.some((d) => d.slug === s));
+  // Disabled or unknown slugs are recorded as skipped so resume treats them as
+  // done. An earlier version returned them to the caller without writing
+  // run_sources, which left them "pending" forever after a publish.
+  const skippedOutcomes: SourceOutcome[] = opts.slugs
+    .filter((s) => !slice.some((d) => d.slug === s))
+    .map((slug) => ({
+      slug,
+      status: "skipped" as const,
+      itemsFound: 0,
+      itemsNew: 0,
+      durationMs: 0,
+      error: enabledSlugs.has(slug) ? "unknown source" : "disabled",
+    }));
 
   const [run] = await db
     .insert(runs)
@@ -158,6 +172,8 @@ export async function ingestChunk(opts: {
     );
     outcomes.push(...settled);
   }
+
+  outcomes.push(...skippedOutcomes);
 
   for (const o of outcomes) {
     await db.insert(runSources).values({
@@ -184,7 +200,7 @@ export async function ingestChunk(opts: {
     })
     .where(eq(runs.id, run.id));
 
-  return { outcomes, skipped };
+  return { outcomes, skipped: skippedOutcomes.map((o) => o.slug) };
 }
 
 /**

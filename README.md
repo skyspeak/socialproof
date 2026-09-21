@@ -2,7 +2,7 @@
 
 A daily technology digest that runs in the cloud, reads what the industry actually argued about, and never asks you to open X.
 
-Ingests Hacker News, Lobsters, GitHub, arXiv, Techmeme, Reddit and the open-web reflection of X into Postgres, clusters the last 24 hours into named themes, tracks a dedicated people-moves beat, and publishes a dated issue with a permanent archive.
+Ingests Hacker News, Lobsters, GitHub, arXiv, Hugging Face papers, trade press, Techmeme, Reddit, Bluesky and the open-web reflection of X into Postgres, clusters the last 24 hours into named themes, tracks a dedicated people-moves beat, and publishes a dated issue with a permanent archive.
 
 **Stack:** Next.js (App Router) on Vercel · Postgres via Drizzle · Vercel Cron
 
@@ -46,12 +46,12 @@ See **[DEPLOY.md](./DEPLOY.md)** for the full cloud rationale and deployment ste
 
 | Tier | Sources |
 |---|---|
-| Core (open APIs) | Hacker News stories, HN top comments, Lobsters, GitHub new+rising, arXiv cs.AI/LG/CL, Ars Technica |
-| X-adjacent | Techmeme, Reddit, Exa semantic search scoped to x.com, X mirror frontends, Simon Willison, Import AI, Latent Space, The Verge |
+| Core (open APIs + trade press) | Hacker News stories, HN top comments, Lobsters, GitHub new+rising, arXiv cs.AI/LG/CL, Hugging Face daily papers, Ars Technica, 404 Media, TechCrunch, The Register, MIT Technology Review |
+| X-adjacent | Techmeme, Reddit, Exa semantic search scoped to x.com, X mirror frontends, Bluesky watched accounts, Simon Willison, Import AI, Latent Space, Platformer, Interconnects, Hugging Face blog, OpenAI News, The Verge |
 | People beat | HN personnel headlines, Techmeme personnel headlines, Exa people-move search |
 | Saved | Tweets you bookmark (bookmarklet, shortcut, or native X bookmarks), plus every outbound link and image on them |
 
-**On the X tier:** no single path is load-bearing. Mirror instances die constantly and Exa needs a key; when those go dark, Techmeme and the newsletters still carry the conversation secondhand with a few hours' lag. Every source reports its own status, so degradation is visible on the page rather than silent.
+**On the X tier:** no single path is load-bearing. Mirror instances die constantly and Exa needs a key; when those go dark, Techmeme, Bluesky, and the newsletters still carry the conversation secondhand with a few hours' lag. Every source reports its own status, so degradation is visible on the page rather than silent.
 
 **Saving a tweet:** open `/save`, generate a bookmarklet, and click it on a tweet. Trendwire fetches the post (via FxTwitter, no X API key required), stores the text, every outbound link, and every image, and gives those items guaranteed seats in the next issue. Native X bookmarks can feed the same path if you set `X_BOOKMARKS_TOKEN` and `X_USER_ID`.
 
@@ -65,15 +65,16 @@ in **[DEPLOY.md](./DEPLOY.md)**. The short version:
 ```bash
 npx vercel                 # deploy
 # set DATABASE_URL, CRON_SECRET, and GEMINI_API_KEY or OPENROUTER_API_KEY in Vercel
-npm run db:migrate         # apply schema via the DIRECT (unpooled) connection
+npm run db:migrate         # apply schema via the DIRECT connection (port 5432)
 npx vercel --prod
 curl -H "Authorization: Bearer $CRON_SECRET" https://<you>.vercel.app/api/cron/digest
 curl https://<you>.vercel.app/api/status
 ```
 
-Postgres comes from **Neon** — Vercel Postgres was discontinued and folded into
-Neon in December 2024. You need two connection strings: the pooled one for the
-app, the direct one for migrations. DEPLOY.md explains why.
+Postgres comes from **Supabase**. You need two connection strings: the
+transaction pooler (port 6543) for the app, the direct connection (port 5432)
+for migrations. DEPLOY.md explains why. This app does not use Auth, Realtime,
+or the Supabase JS client — only Postgres.
 
 ## Local development
 
@@ -103,9 +104,10 @@ DATABASE_URL="pglite://./.pglite" npm run build && DATABASE_URL="pglite://./.pgl
 npm test
 ```
 
-Four suites, no network and no API keys required:
+Five suites. Lock, adapter, continuity, synthesis, and bookmarks need no network. Resume drives the real adapters (live HTTP) under a 1ms budget:
 
 - **`test-lock.ts`** — the lease lock: contention (exactly one of four concurrent acquires wins), non-holders can't renew or release, expired leases are stealable (the crash-recovery path), and the lease is freed even when the body throws.
+- **`test-adapter.ts`** — unique source slugs, the new sources are registered, and `withTimeout` actually cuts off a hung fetch.
 - **`test-resume.ts`** — resumability: drives the pipeline with a 1ms budget so it's forced to stop repeatedly, then asserts every source was ingested **exactly once** across resumes, synthesis ran once rather than per pass, and a tick after publication is a no-op.
 - **`test-synthesis.ts`** — the model path against a stub provider: prompt assembly, fenced-JSON recovery, item-index → row-id mapping, invalid enum coercion, out-of-range indexes, and fallback when no key is set.
 - **`test-bookmarks.ts`** — tweet URL parsing, unpacking links and images from FxTwitter/vxTwitter payloads, ingest item shape, and corpus seats for saved tweets.
@@ -123,23 +125,58 @@ Four suites, no network and no API keys required:
 | `/feed.xml` | RSS |
 | `/save` | Bookmarklet to save a tweet (links + images) into the next issue |
 | `/api/bookmark` | Capture a tweet URL (auth required) |
+| `/api/game-feed/:date` | Flat, ranked projection for downstream games |
 | `/api/status` | Operational health; 503 when degraded |
 | `/api/cron/digest` | Daily pipeline entry point (auth required) |
 | `/api/tick` | Idempotent resume; `?date=` for backfills (auth required) |
 
 ---
 
+## Feeding a game
+
+`/api/game-feed/:date` is a narrow projection of an issue for consumers that are
+not a reader: ranked five-letter terms each carrying the verbatim headline it
+came from, the organizations named that day, and the people beat.
+
+It exists rather than having consumers parse `/api/digest/latest` because the
+digest JSON is the *reading* shape — nested themes, their items, bookmarks,
+source health — and because three rules have to hold in one place rather than
+being reimplemented downstream:
+
+- **A term is only returned if some row can be quoted as its brief.** A game
+  that cannot show a player where a word came from should not use the word.
+- **Only `confirmed` people moves are emitted.** A quiz asserts, and `reported`
+  and `chatter` are not assertions. Wire editions grade their heuristic moves
+  `chatter`, so the beat empties itself exactly when no editor vouched for it.
+- **Nothing in the output is generated prose.** Every string is copied from a
+  row, which is what stops a downstream game inventing the news.
+
+Fetch by date, not `latest` — consumers commit snapshots and need reproducible
+builds. The archive makes that free. Unpublished dates return 409 rather than a
+thin corpus that would read as a quiet news day.
+
+Two consumers today, both in `../../Claude/Calude_Code_game_ai`: **fiver** picks
+the day's word puzzle by overlap with `terms` and quotes one `brief`;
+**front-door** builds a question out of `moves` and flags companies named in
+`orgs`.
+
 ## Known limitations
 
 Being straight about the edges rather than discovering them in production:
 
-- **Reddit 403s from datacenter IPs.** Unauthenticated `.json` reads are blocked from most cloud hosts, including Vercel. The source reports `skipped` with that reason rather than pretending the day was quiet. Making it reliable means registering a Reddit OAuth app and adding client credentials.
+- **Reddit 403s from datacenter IPs.** Unauthenticated `.json` reads are blocked from most cloud hosts, including Vercel. Set `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` (a script app at reddit.com/prefs/apps) to use application-only OAuth. Without them the source reports `skipped`.
+- **GitHub search 403s from Vercel without a token.** Set `GITHUB_TOKEN` (public-repo read is enough). Without it the source reports `skipped` rather than failing the day.
 - **X mirror instances are unreliable by nature.** The adapter races a list and skips when all are down. This is expected, not a bug — it's why the X tier has three independent paths.
 - **arXiv doesn't publish on weekends.** That source uses a 96-hour lookback instead of 24 so Saturday and Sunday issues aren't empty; dedup absorbs the overlap.
 - **The wire fallback is deliberately not editorial.** Without an LLM key, or when the call fails, the issue publishes as a ranked intake list labeled "wire edition" — not heuristic term clusters pretending to be themes.
 - **One LLM call per day** caps cost but also caps nuance; the corpus is trimmed to the top 60 deduped items, with the people beat and saved tweets guaranteed representation so a busy AI news day can't crowd them out.
 - **No email delivery yet.** RSS is wired; adding Resend on publish is a small addition to the synthesis step.
-- **Neon Free suspends compute after 5 minutes idle** and can't be configured otherwise on that plan. First request to a cold site pays a reactivation latency; it is not an error. Page caching keeps most visits off the database.
+- **The game feed's org list is partly heuristic.** Names from the people beat
+  are the editor's; the rest are capitalized runs parsed out of headlines, which
+  picks up the occasional person or common noun. Each entry carries `fromBeat`
+  so a consumer can weight it, and a consumer matching against its own dataset
+  should match exactly rather than fuzzily.
+- **Supabase Free projects can pause after a week of inactivity.** A daily cron keeps this one awake. Page caching keeps most visits off the database.
 - **Synthesis corpus is capped at 60 items** because a 120-item prompt did not return within 10 minutes against a live model, which on Vercel means the run is killed. Raise `SYNTH_MAX_CORPUS` only alongside `LLM_TIMEOUT_MS`, and measure.
 
 ## Cost
