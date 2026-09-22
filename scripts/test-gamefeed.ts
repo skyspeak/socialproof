@@ -165,6 +165,21 @@ const orgs = buildGameFeed(
 const orgNames = orgs.orgs.map((o) => o.name);
 check("beat orgs are kept", orgNames.includes("OpenAI") && orgNames.includes("Anthropic"));
 check("beat orgs sort first", orgs.orgs[0].fromBeat && orgs.orgs[1].fromBeat);
+
+// A wire day's heuristic moves are always graded chatter (see wire.ts) and are
+// correctly filtered out of `moves` below — but `extractOrgs` used to read
+// `digest.people` without that same filter, so a chatter-graded org still came
+// out tagged `fromBeat: true`. Found live: a wire-edition deploy reported 27
+// "editor-named" orgs with zero confirmed moves behind any of them.
+const chatterOrgs = buildGameFeed(
+  digest({
+    people: [person({ id: "1", fromOrg: "SomeStartup", toOrg: "AnotherCo", confidence: "chatter" })],
+  }),
+);
+check(
+  "an unconfirmed move's orgs are not tagged fromBeat",
+  !chatterOrgs.orgs.some((o) => o.name === "SomeStartup" || o.name === "AnotherCo"),
+);
 check("a name in two different headlines is picked up", orgNames.includes("Nvidia"));
 // The same story from several desks is one sighting, not several.
 const echoed = buildGameFeed(

@@ -312,7 +312,15 @@ function extractOrgs(digest: DigestView, intake: DigestItemView[]): GameOrg[] {
     prev.beat ||= beat;
   };
 
+  // `fromBeat: true` is a downstream consumer's signal to trust a name without
+  // corroboration — front-door uses it to badge a company "in the news" off a
+  // single mention. `digest.people` carries every confidence tier, including
+  // the wire fallback's heuristic guesses (always graded chatter). Gating this
+  // the same way the `moves` array below is gated is what keeps "confirmed"
+  // meaning the same thing everywhere in this file: a wire day has no editor,
+  // so it must produce no beat-trusted orgs either, not merely no moves.
   for (const p of digest.people) {
+    if (p.confidence !== "confirmed") continue;
     const where = `beat:${p.person}`;
     if (p.fromOrg) bump(p.fromOrg, p.evidenceUrl, true, where);
     if (p.toOrg) bump(p.toOrg, p.evidenceUrl, true, where);
