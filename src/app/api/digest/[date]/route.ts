@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDigest, getLatestDigestDate } from "@/db/queries";
+import { isValidDateKey } from "@/lib/window";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export async function GET(
   if (!key) {
     return NextResponse.json({ error: "no published digest" }, { status: 404 });
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+  if (!isValidDateKey(key)) {
     return NextResponse.json({ error: "bad date" }, { status: 400 });
   }
 

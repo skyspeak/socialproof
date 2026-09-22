@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getDigest } from "@/db/queries";
+import { isValidDateKey } from "@/lib/window";
 import { DigestBody } from "@/components/DigestBody";
 
 /**
@@ -30,7 +31,10 @@ export default async function DigestPage({
 }) {
   const { date } = await params;
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) notFound();
+  // A calendar-invalid but digit-shaped date (2026-02-30) already ends in
+  // notFound() via the .catch() below — Postgres rejects the literal and the
+  // error is swallowed. Checking here just skips that wasted round trip.
+  if (!isValidDateKey(date)) notFound();
 
   const digest = await getDigest(date).catch(() => null);
   if (!digest) notFound();

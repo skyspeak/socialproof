@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { advance, DEFAULT_BUDGET_MS } from "@/pipeline";
 import { authorized } from "@/lib/site";
 import { withLock } from "@/lib/lock";
-import { windowFor, windowForDate } from "@/lib/window";
+import { isValidDateKey, windowFor, windowForDate } from "@/lib/window";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +28,12 @@ async function handle(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const dateParam = searchParams.get("date");
-  if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+  // Shape alone (`\d{4}-\d{2}-\d{2}`) admits `2026-13-45`. `windowForDate`
+  // builds its window with `new Date(...)`, which normalizes an out-of-range
+  // month or day into a real one rather than throwing — so a typo'd backfill
+  // date would silently ingest under the wrong window before the digest write
+  // finally rejects the original string as an invalid date literal.
+  if (dateParam && !isValidDateKey(dateParam)) {
     return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
   }
 
