@@ -38,6 +38,14 @@ function shortDate(dateKey: string): string {
   });
 }
 
+/** First `max` characters, cut at a word boundary. */
+function excerpt(text: string, max: number): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), max * 0.6))}…`;
+}
+
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -62,13 +70,14 @@ export function DigestBody({
     <article className="issue-body">
       <header className="cover">
         {specimen ? <p className="vol specimen">Specimen — not a press run</p> : null}
-        <p className="vol">
-          {edition} · {formatDate(digest.date)}
-        </p>
+        <p className="vol">{edition}</p>
         <h1>
           <a href="/">Trendwire</a>
         </h1>
         <p className="banner">The day’s argument, without the sites</p>
+        <p className="dateline">
+          <time dateTime={digest.date}>{formatDate(digest.date)}</time>
+        </p>
         <h2 className="cover-hed">
           {digest.headline ?? "No single story dominated."}
         </h2>
@@ -117,6 +126,17 @@ export function DigestBody({
                   <span className="toc-deck">
                     {digest.people.length}{" "}
                     {digest.people.length === 1 ? "move" : "moves"}
+                  </span>
+                </a>
+              </li>
+            ) : null}
+            {digest.papers?.length ? (
+              <li>
+                <a href="#papers">
+                  <span className="toc-num">—</span>
+                  <span className="toc-name">Papers</span>
+                  <span className="toc-deck">
+                    {digest.papers.length} new from arXiv
                   </span>
                 </a>
               </li>
@@ -195,6 +215,39 @@ export function DigestBody({
               </article>
             ))}
           </div>
+        </section>
+      ) : null}
+
+      {digest.papers?.length ? (
+        <section id="papers">
+          <h3 className="hed">Papers</h3>
+          <p className="kicker-line">
+            New on arXiv (cs.AI, cs.LG, cs.CL) since the last issue.
+          </p>
+          <ol className="papers">
+            {digest.papers.map((paper) => (
+              <li key={paper.id}>
+                {paper.url ? (
+                  <a
+                    className="paper-title"
+                    href={paper.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {paper.title}
+                  </a>
+                ) : (
+                  <span className="paper-title">{paper.title}</span>
+                )}
+                {paper.authors ? (
+                  <p className="paper-authors">{paper.authors}</p>
+                ) : null}
+                {paper.abstract ? (
+                  <p className="paper-abstract">{excerpt(paper.abstract, 240)}</p>
+                ) : null}
+              </li>
+            ))}
+          </ol>
         </section>
       ) : null}
 

@@ -29,6 +29,15 @@ export type DigestItemView = {
   imageUrl: string | null;
 };
 
+export type PaperView = {
+  id: string;
+  title: string;
+  url: string | null;
+  authors: string | null;
+  abstract: string | null;
+  publishedAt: Date | null;
+};
+
 export type ThemeView = {
   id: string;
   name: string;
@@ -66,6 +75,8 @@ export type DigestView = {
     note: string | null;
     evidenceUrl: string | null;
   }>;
+  /** arXiv submissions this issue's run first saw. Absent on specimen issues. */
+  papers?: PaperView[];
   bookmarks: Array<{
     tweetId: string;
     tweetUrl: string;
@@ -258,6 +269,48 @@ export async function getIntakeItems(
   }));
 }
 
+/**
+ * The day's arXiv papers.
+ *
+ * arXiv was already being ingested — forty papers a day, status ok — but never
+ * appeared anywhere: papers carry no score, so they lose every ranking that
+ * sorts on engagement, and on a wire edition the ranked list is the whole issue.
+ * They are a separate shelf rather than competing with news for a slot.
+ *
+ * Keyed on `fetchedAt` inside the issue's window, not on publication date. The
+ * source looks back four days to survive arXiv's weekend gap, so the same
+ * paper is returned by consecutive runs; upsert keeps the first `fetchedAt`,
+ * which makes each paper belong to exactly one issue instead of five.
+ */
+export async function getPapers(
+  windowStart: Date,
+  windowEnd: Date,
+  limit = 12,
+): Promise<PaperView[]> {
+  const db = await getDb();
+  const rows = await db
+    .select({
+      id: rawItems.id,
+      title: rawItems.title,
+      url: rawItems.url,
+      authors: rawItems.author,
+      abstract: rawItems.body,
+      publishedAt: rawItems.publishedAt,
+    })
+    .from(rawItems)
+    .innerJoin(sources, eq(rawItems.sourceId, sources.id))
+    .where(
+      and(
+        eq(sources.slug, "arxiv"),
+        gte(rawItems.fetchedAt, windowStart),
+        lte(rawItems.fetchedAt, new Date(windowEnd.getTime() + 3_600_000)),
+      ),
+    )
+    .orderBy(desc(rawItems.publishedAt))
+    .limit(limit);
+  return rows;
+}
+
 export async function getDigest(dateKey: string): Promise<DigestView | null> {
   const db = await getDb();
 
@@ -429,6 +482,7 @@ export async function getDigest(dateKey: string): Promise<DigestView | null> {
       links: b.links ?? [],
       images: b.images ?? [],
     })),
+    papers: await getPapers(digest.windowStart, digest.windowEnd),
     sourceHealth: [...healthBySlug.values()].sort((a, b) =>
       a.slug.localeCompare(b.slug),
     ),

@@ -31,7 +31,7 @@ const ALL_PROVIDERS: ProviderId[] = [
 const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? 120_000);
 
 function geminiKey(): string | undefined {
-  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || undefined;
+  return cleanEnv(process.env.GEMINI_API_KEY) || cleanEnv(process.env.GOOGLE_API_KEY);
 }
 
 export function configuredProviders(): ProviderId[] {
@@ -57,6 +57,28 @@ export function hasLlm(): boolean {
   return configuredProviders().length > 0;
 }
 
+/**
+ * Env values pasted into a dashboard arrive with more than the value: wrapping
+ * quotes copied from a .env file, trailing whitespace or a newline. The Gemini
+ * model name is interpolated into a URL *path*, so any of those turns
+ * `models/gemini-2.5-pro:generateContent` into a path Google rejects with
+ * `400 GenerateContentRequest.model: unexpected model name format` — which
+ * took every issue since the first deploy down to the wire fallback.
+ */
+export function cleanEnv(raw: string | undefined): string | undefined {
+  if (raw == null) return undefined;
+  const v = raw.trim().replace(/^(["'])(.*)\1$/s, "$2").trim();
+  return v || undefined;
+}
+
+/** A model id we can safely put in a URL path, or the fallback. */
+export function modelName(raw: string | undefined, fallback: string): string {
+  const v = cleanEnv(raw)?.replace(/^models\//, "");
+  if (v && /^[A-Za-z0-9._-]+$/.test(v)) return v;
+  if (v) console.warn(`Ignoring malformed model name ${JSON.stringify(v)}; using ${fallback}`);
+  return fallback;
+}
+
 async function callGemini(
   system: string,
   user: string,
@@ -65,7 +87,7 @@ async function callGemini(
   const key = geminiKey();
   if (!key) throw new Error("GEMINI_API_KEY is not set");
 
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-pro";
+  const model = modelName(process.env.GEMINI_MODEL, "gemini-2.5-pro");
   const base = (
     process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta"
   ).replace(/\/$/, "");
@@ -162,7 +184,7 @@ async function callOpenRouter(
   user: string,
   maxTokens: number,
 ): Promise<LlmResult> {
-  const key = process.env.OPENROUTER_API_KEY;
+  const key = cleanEnv(process.env.OPENROUTER_API_KEY);
   if (!key) throw new Error("OPENROUTER_API_KEY is not set");
 
   const site = process.env.NEXT_PUBLIC_SITE_URL || "https://trendwire.local";
@@ -173,7 +195,7 @@ async function callOpenRouter(
     provider: "openrouter",
     url: `${base}/chat/completions`,
     key,
-    model: process.env.OPENROUTER_MODEL || "google/gemini-2.5-pro",
+    model: cleanEnv(process.env.OPENROUTER_MODEL) || "google/gemini-2.5-pro",
     headers: {
       "HTTP-Referer": site,
       "X-Title": "Trendwire",
@@ -194,11 +216,11 @@ async function callAnthropic(
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY!,
+      "x-api-key": cleanEnv(process.env.ANTHROPIC_API_KEY)!,
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5",
+      model: cleanEnv(process.env.ANTHROPIC_MODEL) || "claude-sonnet-4-5",
       max_tokens: maxTokens,
       system,
       messages: [{ role: "user", content: user }],
@@ -232,8 +254,8 @@ async function callOpenAI(
   return callOpenAiCompatible({
     provider: "openai",
     url: `${base}/v1/chat/completions`,
-    key: process.env.OPENAI_API_KEY!,
-    model: process.env.OPENAI_MODEL || "gpt-4o",
+    key: cleanEnv(process.env.OPENAI_API_KEY)!,
+    model: cleanEnv(process.env.OPENAI_MODEL) || "gpt-4o",
     system,
     user,
     maxTokens,

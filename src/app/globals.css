@@ -167,6 +167,24 @@ a {
   margin: 0 0 1.35rem;
 }
 
+/* The date is what a reader checks first — is this today's paper? It used to
+   sit in the 0.68rem kicker above the masthead, the smallest text on the page. */
+.cover .dateline {
+  margin: 1.1rem 0 0.2rem;
+  font-family: var(--display);
+  font-size: clamp(1.15rem, 4.2vw, 1.85rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+.cover .dateline time {
+  display: inline-block;
+  padding: 0.15em 0.5em 0.2em;
+  border-bottom: 3px solid var(--accent);
+  text-wrap: balance;
+}
+
 .cover-hed {
   font-family: var(--display);
   font-style: italic;
@@ -927,4 +945,51 @@ footer.colophon a:hover {
   @page {
     margin: 16mm 14mm 18mm;
   }
+}
+
+/* Papers: a plain numbered shelf — title, authors, a two-line abstract. */
+.papers {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  counter-reset: paper;
+}
+.papers li {
+  counter-increment: paper;
+  padding: 0.85rem 0 0.9rem 2.2rem;
+  border-bottom: 1px solid var(--rule);
+  position: relative;
+}
+.papers li::before {
+  content: counter(paper, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: 0.95rem;
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: var(--ink-mute);
+}
+.papers .paper-title {
+  font-family: var(--display);
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.papers a.paper-title:hover {
+  color: var(--accent);
+}
+.papers .paper-authors {
+  margin: 0.25rem 0 0;
+  font-family: var(--sans);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-mute);
+}
+.papers .paper-abstract {
+  margin: 0.4rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
 }
