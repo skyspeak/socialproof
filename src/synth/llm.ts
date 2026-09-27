@@ -79,6 +79,40 @@ export function modelName(raw: string | undefined, fallback: string): string {
   return fallback;
 }
 
+const GEMINI_FALLBACK_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash"];
+
+function geminiBase(): string {
+  const raw = cleanEnv(process.env.GEMINI_BASE_URL);
+  return (raw ?? "https://generativelanguage.googleapis.com/v1beta").replace(/\/$/, "");
+}
+
+/** The configured model, then the known-good ones, without repeats. */
+function geminiModelLadder(): string[] {
+  const configured = modelName(process.env.GEMINI_MODEL, GEMINI_FALLBACK_MODELS[0]);
+  return [configured, ...GEMINI_FALLBACK_MODELS.filter((m) => m !== configured)];
+}
+
+/**
+ * What the deployed code will actually send to Gemini, for /api/status.
+ *
+ * The stored variables are write-only in the Vercel dashboard, so when a
+ * request is rejected there is otherwise no way to see what the app read. A
+ * model id and a base URL are not secrets. The key is reported only by shape —
+ * length and prefix — enough to tell a real AI Studio key from a pasted-wrong
+ * one without revealing it.
+ */
+export function geminiConfigSummary() {
+  const key = geminiKey();
+  return {
+    modelEnvRaw: process.env.GEMINI_MODEL == null ? null : JSON.stringify(process.env.GEMINI_MODEL),
+    modelLadder: geminiModelLadder(),
+    baseUrl: geminiBase(),
+    key: key
+      ? { present: true, length: key.length, prefix: key.slice(0, 4), whitespaceInside: /\s/.test(key) }
+      : { present: false },
+  };
+}
+
 async function callGemini(
   system: string,
   user: string,
@@ -87,29 +121,45 @@ async function callGemini(
   const key = geminiKey();
   if (!key) throw new Error("GEMINI_API_KEY is not set");
 
-  const model = modelName(process.env.GEMINI_MODEL, "gemini-2.5-pro");
-  const base = (
-    process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta"
-  ).replace(/\/$/, "");
-  const url = `${base}/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: system }] },
-      contents: [{ role: "user", parts: [{ text: user }] }],
-      generationConfig: {
-        maxOutputTokens: maxTokens,
-        responseMimeType: "application/json",
-        temperature: 0.3,
-      },
-    }),
-    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+  const base = geminiBase();
+  const body = JSON.stringify({
+    system_instruction: { parts: [{ text: system }] },
+    contents: [{ role: "user", parts: [{ text: user }] }],
+    generationConfig: {
+      maxOutputTokens: maxTokens,
+      responseMimeType: "application/json",
+      temperature: 0.3,
+    },
   });
 
-  if (!res.ok) {
-    throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  // The configured model first, then known-good ids. A 400 that says the model
+  // name is malformed (or a 404 that says it does not exist) is a property of
+  // the *name*, so trying the next one is right; every other failure — a bad
+  // key, quota, a blocked prompt — would fail identically, so it stops here.
+  // Each attempt is recorded in the error so a failed press run says what was
+  // tried, not just that it failed.
+  const attempts = geminiModelLadder();
+  const tried: string[] = [];
+  let res: Response | null = null;
+  for (const model of attempts) {
+    const url = `${base}/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+      signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+    });
+    if (res.ok) break;
+    const detail = (await res.text()).replace(/\s+/g, " ").slice(0, 260);
+    tried.push(`${model} → ${res.status} ${detail}`);
+    const nameProblem =
+      (res.status === 400 && /model name format|model.*invalid/i.test(detail)) ||
+      res.status === 404;
+    if (!nameProblem) break;
+    res = null;
+  }
+  if (!res || !res.ok) {
+    throw new Error(`Gemini failed. Tried: ${tried.join(" | ")}`);
   }
 
   const data = (await res.json()) as {
