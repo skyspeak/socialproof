@@ -23,6 +23,10 @@ check("a models/ prefix is stripped", modelName("models/gemini-2.5-pro", D) === 
 check("unset falls back", modelName(undefined, D) === D);
 check("empty falls back", modelName("", D) === D);
 check("quotes around nothing fall back", modelName('""', D) === D);
+check("an API key pasted into the model field falls back", modelName("AQ." + "x".repeat(50), D) === D);
+check("an AIza-style key falls back", modelName("AIza" + "y".repeat(35), D) === D);
+check("a gemma model is accepted", modelName("gemma-3-27b-it", D) === "gemma-3-27b-it");
+check("a preview gemini id is accepted", modelName("gemini-2.5-flash-preview-05-20", D) === "gemini-2.5-flash-preview-05-20");
 check("a name with a space inside falls back", modelName("gemini 2.5 pro", D) === D);
 check("a name with a slash inside falls back", modelName("a/b/c", D) === D);
 check("a name with a colon falls back", modelName("gemini:generateContent", D) === D);

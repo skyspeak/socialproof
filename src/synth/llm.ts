@@ -72,10 +72,20 @@ export function cleanEnv(raw: string | undefined): string | undefined {
 }
 
 /** A model id we can safely put in a URL path, or the fallback. */
+/**
+ * Google's model families. A value that merely uses legal characters is not
+ * enough: an API key pasted into the model field ("AQ.Ab8R…") is all legal
+ * characters, and sailed through the first version of this check.
+ */
+function looksLikeModelId(v: string | undefined): boolean {
+  return !!v && /^(gemini|gemma|learnlm)[A-Za-z0-9._-]*$/i.test(v);
+}
+
 export function modelName(raw: string | undefined, fallback: string): string {
   const v = cleanEnv(raw)?.replace(/^models\//, "");
-  if (v && /^[A-Za-z0-9._-]+$/.test(v)) return v;
-  if (v) console.warn(`Ignoring malformed model name ${JSON.stringify(v)}; using ${fallback}`);
+  if (v && looksLikeModelId(v)) return v;
+  // Never log the value: when it is not a model id it may well be a secret.
+  if (v) console.warn(`Ignoring GEMINI_MODEL (${v.length} chars, not a model id); using ${fallback}`);
   return fallback;
 }
 
@@ -103,13 +113,19 @@ function geminiModelLadder(): string[] {
  */
 export function geminiConfigSummary() {
   const key = geminiKey();
+  const rawModel = process.env.GEMINI_MODEL;
   return {
-    modelEnvRaw: process.env.GEMINI_MODEL == null ? null : JSON.stringify(process.env.GEMINI_MODEL),
+    // Shape only. The first version of this echoed the raw variable, which is
+    // how a pasted API key in the model field was printed on a public page.
+    modelEnv:
+      rawModel == null
+        ? "unset"
+        : looksLikeModelId(cleanEnv(rawModel)?.replace(/^models\//, ""))
+          ? "valid model id"
+          : `ignored: not a model id (${String(rawModel).length} chars)`,
     modelLadder: geminiModelLadder(),
     baseUrl: geminiBase(),
-    key: key
-      ? { present: true, length: key.length, prefix: key.slice(0, 4), whitespaceInside: /\s/.test(key) }
-      : { present: false },
+    key: key ? { present: true, length: key.length } : { present: false },
   };
 }
 
