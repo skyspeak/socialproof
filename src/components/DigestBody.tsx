@@ -92,6 +92,9 @@ export function DigestBody({
           {digest.nextDate ? (
             <a href={`/digest/${digest.nextDate}`}>Next</a>
           ) : null}
+          {specimen ? null : (
+            <a href={`/digest/${digest.date}/print`}>Print edition</a>
+          )}
           <a href="/archive">Back issues</a>
         </span>
       </nav>

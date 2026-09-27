@@ -27,6 +27,9 @@ export type DigestItemView = {
   score: number | null;
   commentCount: number | null;
   imageUrl: string | null;
+  /** First ~500 characters of the item's own text. Only the intake query sets it. */
+  excerpt?: string | null;
+  author?: string | null;
 };
 
 export type PaperView = {
@@ -245,6 +248,8 @@ export async function getIntakeItems(
       commentCount: rawItems.commentCount,
       sourceName: sources.name,
       raw: rawItems.raw,
+      body: rawItems.body,
+      author: rawItems.author,
     })
     .from(rawItems)
     .innerJoin(sources, eq(rawItems.sourceId, sources.id))
@@ -266,6 +271,8 @@ export async function getIntakeItems(
     score: r.score,
     commentCount: r.commentCount,
     imageUrl: imageFromRaw(r.raw),
+    excerpt: r.body ? r.body.replace(/\s+/g, " ").trim().slice(0, 500) || null : null,
+    author: r.author,
   }));
 }
 
