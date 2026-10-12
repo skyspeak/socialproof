@@ -53,6 +53,8 @@ See **[DEPLOY.md](./DEPLOY.md)** for the full cloud rationale and deployment ste
 
 **On the X tier:** no single path is load-bearing. Mirror instances die constantly and Exa needs a key; when those go dark, Techmeme, Bluesky, and the newsletters still carry the conversation secondhand with a few hours' lag. Every source reports its own status, so degradation is visible on the page rather than silent.
 
+**Saving every bookmark, automatically:** [`tools/x_reader`](./tools/x_reader) reads your X bookmarks through your own signed-in browser session (no API key) and sends the new ones to `/api/bookmark`. It runs on your machine, not on Vercel, and is off until you point it at a Trendwire URL.
+
 **Saving a tweet:** open `/save`, generate a bookmarklet, and click it on a tweet. Trendwire fetches the post (via FxTwitter, no X API key required), stores the text, every outbound link, and every image, and gives those items guaranteed seats in the next issue. Native X bookmarks can feed the same path if you set `X_BOOKMARKS_TOKEN` and `X_USER_ID`.
 
 ---

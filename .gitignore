@@ -16,3 +16,12 @@ build/
 __pycache__/
 *.pyc
 .vite/
+
+# x_reader keeps your signed-in X session, your notes and a generated site next
+# to the script. None of it belongs in a repository.
+tools/x_reader/xreader_data/
+tools/x_reader/site/
+tools/x_reader/functions/
+tools/x_reader/wrangler.toml
+tools/x_reader/LEARNINGS.md
+tools/x_reader/.wrangler/
