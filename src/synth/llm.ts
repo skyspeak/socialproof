@@ -89,7 +89,31 @@ export function modelName(raw: string | undefined, fallback: string): string {
   return fallback;
 }
 
-const GEMINI_FALLBACK_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash"];
+/**
+ * In preference order. `gemini-2.5-pro` was answering "no longer available to
+ * new users — use models/gemini-3.1-pro-preview" (a 404) from early October, so
+ * it is last: still worth a fast try, no longer the default. Each model has its
+ * own quota bucket, which is also why a 429 on one moves on to the next.
+ */
+const GEMINI_FALLBACK_MODELS = [
+  "gemini-3.1-pro-preview",
+  "gemini-2.5-flash",
+  "gemini-2.5-pro",
+];
+
+/**
+ * Gemini's thinking tokens are drawn from the same `maxOutputTokens` as the
+ * answer. The synthesis call asks for 5,000, which a thinking model can spend
+ * almost entirely on thought and leave ~1,000 for a JSON document that needs
+ * several times that — it stops mid-array and the issue falls back to wire.
+ * Seen in production: "Expected ',' or ']' after array element … position 4428".
+ * Unused budget costs nothing, so Gemini gets a floor well above what the
+ * answer needs; other providers keep the caller's number.
+ */
+const GEMINI_MIN_OUTPUT_TOKENS = Number(process.env.GEMINI_MAX_OUTPUT_TOKENS ?? 16000);
+
+/** Wall-clock for the whole ladder, so several attempts cannot outlive the function. */
+const GEMINI_TOTAL_MS = Number(process.env.GEMINI_TOTAL_MS ?? 150_000);
 
 function geminiBase(): string {
   const raw = cleanEnv(process.env.GEMINI_BASE_URL);
@@ -124,6 +148,7 @@ export function geminiConfigSummary() {
           ? "valid model id"
           : `ignored: not a model id (${String(rawModel).length} chars)`,
     modelLadder: geminiModelLadder(),
+    outputTokenFloor: GEMINI_MIN_OUTPUT_TOKENS,
     baseUrl: geminiBase(),
     key: key ? { present: true, length: key.length } : { present: false },
   };
@@ -138,67 +163,105 @@ async function callGemini(
   if (!key) throw new Error("GEMINI_API_KEY is not set");
 
   const base = geminiBase();
+  const budget = Math.max(maxTokens, GEMINI_MIN_OUTPUT_TOKENS);
   const body = JSON.stringify({
     system_instruction: { parts: [{ text: system }] },
     contents: [{ role: "user", parts: [{ text: user }] }],
     generationConfig: {
-      maxOutputTokens: maxTokens,
+      maxOutputTokens: budget,
       responseMimeType: "application/json",
       temperature: 0.3,
     },
   });
 
-  // The configured model first, then known-good ids. A 400 that says the model
-  // name is malformed (or a 404 that says it does not exist) is a property of
-  // the *name*, so trying the next one is right; every other failure — a bad
-  // key, quota, a blocked prompt — would fail identically, so it stops here.
-  // Each attempt is recorded in the error so a failed press run says what was
-  // tried, not just that it failed.
-  const attempts = geminiModelLadder();
+  // Walk the ladder. What moves on to the next model is anything that is a
+  // property of *this model* rather than of the request:
+  //   400 bad model name · 404 model gone · 429 this model's quota ·
+  //   5xx overloaded · a 200 whose answer was cut off, empty, or not JSON.
+  // What stops the whole call is a property of the request: a bad key (400/401/
+  // 403), or a prompt Google refused. Every attempt is recorded, so a failed
+  // press run says what was tried and what came back — "Could not parse JSON"
+  // alone told us nothing for two weeks.
+  const started = Date.now();
   const tried: string[] = [];
-  let res: Response | null = null;
-  for (const model of attempts) {
+
+  for (const model of geminiModelLadder()) {
+    const remaining = GEMINI_TOTAL_MS - (Date.now() - started);
+    if (remaining < 10_000) {
+      tried.push(`${model} → skipped, ladder budget spent`);
+      break;
+    }
+
     const url = `${base}/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
-    res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body,
-      signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
-    });
-    if (res.ok) break;
-    const detail = (await res.text()).replace(/\s+/g, " ").slice(0, 260);
-    tried.push(`${model} → ${res.status} ${detail}`);
-    const nameProblem =
-      (res.status === 400 && /model name format|model.*invalid/i.test(detail)) ||
-      res.status === 404;
-    if (!nameProblem) break;
-    res = null;
-  }
-  if (!res || !res.ok) {
-    throw new Error(`Gemini failed. Tried: ${tried.join(" | ")}`);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+        signal: AbortSignal.timeout(Math.min(LLM_TIMEOUT_MS, remaining)),
+      });
+    } catch (err) {
+      tried.push(`${model} → ${err instanceof Error ? err.name : "error"} (no response)`);
+      continue;
+    }
+
+    if (!res.ok) {
+      const detail = (await res.text()).replace(/\s+/g, " ").slice(0, 240);
+      tried.push(`${model} → ${res.status} ${detail}`);
+      const modelProblem =
+        res.status === 404 ||
+        res.status === 429 ||
+        res.status >= 500 ||
+        (res.status === 400 && /model name format|model.*invalid/i.test(detail));
+      if (!modelProblem) break;
+      continue;
+    }
+
+    const data = (await res.json()) as {
+      promptFeedback?: { blockReason?: string };
+      usageMetadata?: { thoughtsTokenCount?: number; candidatesTokenCount?: number };
+      candidates?: Array<{
+        finishReason?: string;
+        content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+      }>;
+    };
+
+    if (data.promptFeedback?.blockReason) {
+      throw new Error(`Gemini blocked the prompt: ${data.promptFeedback.blockReason}`);
+    }
+
+    const cand = data.candidates?.[0];
+    const usage = data.usageMetadata;
+    const shape =
+      `finish=${cand?.finishReason ?? "none"}` +
+      (usage ? ` thought=${usage.thoughtsTokenCount ?? 0} out=${usage.candidatesTokenCount ?? 0}` : "");
+
+    // Thought parts are not the answer, whatever order they arrive in.
+    const text = (cand?.content?.parts ?? [])
+      .filter((part) => !part.thought)
+      .map((part) => part.text ?? "")
+      .join("");
+
+    if (cand?.finishReason === "MAX_TOKENS") {
+      tried.push(`${model} → output cut off at the token limit (${shape}, limit ${budget})`);
+      continue;
+    }
+    if (!text.trim()) {
+      tried.push(`${model} → empty answer (${shape})`);
+      continue;
+    }
+    try {
+      parseJsonLoose(text);
+    } catch (err) {
+      const why = err instanceof Error ? err.message.slice(0, 90) : "parse error";
+      tried.push(`${model} → answer was not valid JSON: ${why} (${shape}, ${text.length} chars)`);
+      continue;
+    }
+    return { text, provider: "gemini" };
   }
 
-  const data = (await res.json()) as {
-    promptFeedback?: { blockReason?: string };
-    candidates?: Array<{
-      finishReason?: string;
-      content?: { parts?: Array<{ text?: string }> };
-    }>;
-  };
-
-  if (data.promptFeedback?.blockReason) {
-    throw new Error(`Gemini blocked the prompt: ${data.promptFeedback.blockReason}`);
-  }
-
-  const text = (data.candidates?.[0]?.content?.parts ?? [])
-    .map((p) => p.text ?? "")
-    .join("");
-  if (!text.trim()) {
-    throw new Error(
-      `Gemini returned empty text (finishReason=${data.candidates?.[0]?.finishReason ?? "none"})`,
-    );
-  }
-  return { text, provider: "gemini" };
+  throw new Error(`Gemini failed. Tried: ${tried.join(" | ")}`);
 }
 
 async function callOpenAiCompatible(opts: {
