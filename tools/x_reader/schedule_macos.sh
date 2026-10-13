@@ -4,6 +4,7 @@
 #   ./schedule_macos.sh install [HH:MM]   default 15:00, local time
 #   ./schedule_macos.sh status
 #   ./schedule_macos.sh run-now           run a sync now, through launchd
+#   ./schedule_macos.sh app               build "X Bookmarks.app" (no terminal needed)
 #   ./schedule_macos.sh uninstall [--purge]
 #
 # Why a separate runtime directory (~/.x_reader) rather than running from the
@@ -47,6 +48,7 @@ do_install() {
   fi
 
   cp "$HERE/x_reader.py" "$RUNTIME/x_reader.py"
+  [ -f "$RUNTIME/helper.sh" ] && cp "$HERE/app_helper.sh" "$RUNTIME/helper.sh"
 
   if [ ! -f "$RUNTIME/.env" ]; then
     [ -f "$HERE/.env" ] || die "no .env found in $HERE — create one first (see .env.example)"
@@ -127,7 +129,19 @@ status() {
   if [ -n "$last" ]; then say "latest log: $last"; tail -n 12 "$last" | sed 's/^/  /'; else say "no runs logged yet"; fi
 }
 
+build_app() {
+  [ -d "$RUNTIME" ] || die "run './schedule_macos.sh install' first"
+  command -v osacompile >/dev/null 2>&1 || die "osacompile not found (it ships with macOS)"
+  cp "$HERE/app_helper.sh" "$RUNTIME/helper.sh" && chmod 755 "$RUNTIME/helper.sh"
+  mkdir -p "$HOME/Applications"
+  rm -rf "$HOME/Applications/X Bookmarks.app"
+  osacompile -o "$HOME/Applications/X Bookmarks.app" "$HERE/X Bookmarks.applescript"
+  say "built ~/Applications/X Bookmarks.app"
+  say "open it from Spotlight (Command-Space, then 'X Bookmarks'), or drag it to the Dock"
+}
+
 case "$cmd" in
+  app)       build_app ;;
   install)   shift; do_install "$@" ;;
   status)    status ;;
   run-now)   launchctl kickstart -k "$DOMAIN/$LABEL" && say "started; follow with: tail -f $RUNTIME/logs/sync-\$(date +%Y-%m-%d).log" ;;

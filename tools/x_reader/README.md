@@ -95,6 +95,24 @@ fresh `X_AUTH_TOKEN` and `X_CT0` values in `~/.x_reader/.env`.
 Trendwire builds each issue just after midnight UTC (about 5pm Pacific), so a
 mid-afternoon run lands in that day's issue.
 
+## No terminal: the X Bookmarks app (macOS)
+
+```bash
+./schedule_macos.sh app
+```
+
+builds `~/Applications/X Bookmarks.app`. Open it from Spotlight (Command-Space,
+then "X Bookmarks") or drag it to the Dock. It shows when the last sync ran and
+how it went, and when the next one is, with two buttons:
+
+- **Sync now** runs a sync straight away and tells you how many bookmarks were
+  new and how many were sent.
+- **Update X login** is for when X has signed you out. It walks you through
+  copying the two cookie values from your browser and saves them, without a
+  terminal and without the values appearing on a command line.
+
+You never have to open it: the daily job runs without it.
+
 ## What stays local
 
 `xreader_data/` holds your signed-in X session (`browser_profile/`), your saved
