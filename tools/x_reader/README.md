@@ -68,6 +68,33 @@ uv run x_reader.py sync --no-push      # this once, do not send
 Push state lives in `xreader_data/push_state.json`, separate from the script's
 own `state.json`.
 
+## Running it every day (macOS)
+
+`sync` only runs when something runs it. To run it daily on a Mac:
+
+```bash
+./schedule_macos.sh install          # every day at 15:00 local time
+./schedule_macos.sh install 16:30    # or pick a time
+./schedule_macos.sh status           # is it scheduled, and what did the last run say
+./schedule_macos.sh run-now          # run one now, through launchd
+./schedule_macos.sh uninstall        # unschedule (--purge also removes ~/.x_reader)
+```
+
+It runs from `~/.x_reader`, not from this folder: macOS stops background jobs
+reading `~/Documents`, and a job that lives in a git clone dies when the clone
+is deleted. `install` copies the script, your `.env` and the state so far there,
+and builds its own Python environment. Run `install` again after you change
+`x_reader.py`. Logs are in `~/.x_reader/logs/`, and a failed run (X signed you
+out, Trendwire rejected the secret, a crash) raises a macOS notification.
+
+It is a laptop job: it runs at the set time if the Mac is awake, or when it next
+wakes. It does not run while the Mac is off or you are logged out. X sessions
+expire after a few weeks, which shows up as a "not signed in" notification; put
+fresh `X_AUTH_TOKEN` and `X_CT0` values in `~/.x_reader/.env`.
+
+Trendwire builds each issue just after midnight UTC (about 5pm Pacific), so a
+mid-afternoon run lands in that day's issue.
+
 ## What stays local
 
 `xreader_data/` holds your signed-in X session (`browser_profile/`), your saved
